@@ -16,6 +16,7 @@
 
 #define _GNU_SOURCE
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -23,12 +24,11 @@
 #include <sys/types.h>
 
 #include <json-c/json.h>
+#define AFB_BINDING_VERSION 2
 #include <afb/afb-binding.h>
 #include <afb/afb-service-itf.h>
 
 #include "radio_impl.h"
-
-static const struct afb_binding_interface *interface;
 
 static struct afb_event freq_event;
 static struct afb_event scan_event;
@@ -445,44 +445,28 @@ static void unsubscribe(struct afb_req request)
 	afb_req_success(request, NULL, NULL);
 }
 
-static const struct afb_verb_desc_v1 verbs[]= {
-	{ "frequency",		AFB_SESSION_CHECK, frequency,		"Get/Set frequency" },
-	{ "band",		AFB_SESSION_CHECK, band,		"Get/Set band" },
-	{ "band_supported",	AFB_SESSION_CHECK, band_supported,	"Check band support" },
-	{ "frequency_range",	AFB_SESSION_CHECK, frequency_range,	"Get frequency range" },
-	{ "frequency_step",	AFB_SESSION_CHECK, frequency_step,	"Get frequency step" },
-	{ "start",		AFB_SESSION_CHECK, start,		"Start radio playback" },
-	{ "stop",		AFB_SESSION_CHECK, stop,		"Stop radio playback" },
-	{ "scan_start",		AFB_SESSION_CHECK, scan_start,		"Start station scan" },
-	{ "scan_stop",		AFB_SESSION_CHECK, scan_stop,		"Stop station scan" },
-	{ "stereo_mode",	AFB_SESSION_CHECK, stereo_mode,		"Get/Set stereo_mode" },
-	{ "subscribe",		AFB_SESSION_CHECK, subscribe,		"Subscribe for an event" },
-	{ "unsubscribe",	AFB_SESSION_CHECK, unsubscribe,		"Unsubscribe for an event" },
-	{ NULL }
+static const struct afb_verb_v2 verbs[]= {
+	{ .verb = "frequency",		.session = AFB_SESSION_CHECK, .callback = frequency,		.info = "Get/Set frequency" },
+	{ .verb = "band",		.session = AFB_SESSION_CHECK, .callback = band,			.info = "Get/Set band" },
+	{ .verb = "band_supported",	.session = AFB_SESSION_CHECK, .callback = band_supported,	.info = "Check band support" },
+	{ .verb = "frequency_range",	.session = AFB_SESSION_CHECK, .callback = frequency_range,	.info = "Get frequency range" },
+	{ .verb = "frequency_step",	.session = AFB_SESSION_CHECK, .callback = frequency_step,	.info = "Get frequency step" },
+	{ .verb = "start",		.session = AFB_SESSION_CHECK, .callback = start,		.info = "Start radio playback" },
+	{ .verb = "stop",		.session = AFB_SESSION_CHECK, .callback = stop,			.info = "Stop radio playback" },
+	{ .verb = "scan_start",		.session = AFB_SESSION_CHECK, .callback = scan_start,		.info = "Start station scan" },
+	{ .verb = "scan_stop",		.session = AFB_SESSION_CHECK, .callback = scan_stop,		.info = "Stop station scan" },
+	{ .verb = "stereo_mode",	.session = AFB_SESSION_CHECK, .callback = stereo_mode,		.info = "Get/Set stereo_mode" },
+	{ .verb = "subscribe",		.session = AFB_SESSION_CHECK, .callback = subscribe,		.info = "Subscribe for an event" },
+	{ .verb = "unsubscribe",	.session = AFB_SESSION_CHECK, .callback = unsubscribe,		.info = "Unsubscribe for an event" },
+	{ }
 };
 
-static const struct afb_binding binding_desc = {
-	.type = AFB_BINDING_VERSION_1,
-	.v1 = {
-		.info = "radio service",
-		.prefix = "radio",
-		.verbs = verbs
-	}
-};
-
-const struct afb_binding *afbBindingV1Register (const struct afb_binding_interface *itf)
-{
-	interface = itf;
-
-	return &binding_desc;
-}
-
-int afbBindingV1ServiceInit(struct afb_service service)
+static int init()
 {
 	int rc;
 
-	freq_event = afb_daemon_make_event(interface->daemon, "frequency");
-	scan_event = afb_daemon_make_event(interface->daemon, "station_found");
+	freq_event = afb_daemon_make_event("frequency");
+	scan_event = afb_daemon_make_event("station_found");
 
 	rc = radio_impl_init();
 	if(rc == 0) {
@@ -491,3 +475,10 @@ int afbBindingV1ServiceInit(struct afb_service service)
 	
 	return rc;
 }
+
+const struct afb_binding_v2 afbBindingV2 = {
+	.info = "radio service",
+	.api  = "radio",
+	.verbs = verbs,
+	.init = init,
+};
