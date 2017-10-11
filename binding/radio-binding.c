@@ -446,18 +446,18 @@ static void unsubscribe(struct afb_req request)
 }
 
 static const struct afb_verb_v2 verbs[]= {
-	{ .verb = "frequency",		.session = AFB_SESSION_CHECK, .callback = frequency,		.info = "Get/Set frequency" },
-	{ .verb = "band",		.session = AFB_SESSION_CHECK, .callback = band,			.info = "Get/Set band" },
-	{ .verb = "band_supported",	.session = AFB_SESSION_CHECK, .callback = band_supported,	.info = "Check band support" },
-	{ .verb = "frequency_range",	.session = AFB_SESSION_CHECK, .callback = frequency_range,	.info = "Get frequency range" },
-	{ .verb = "frequency_step",	.session = AFB_SESSION_CHECK, .callback = frequency_step,	.info = "Get frequency step" },
-	{ .verb = "start",		.session = AFB_SESSION_CHECK, .callback = start,		.info = "Start radio playback" },
-	{ .verb = "stop",		.session = AFB_SESSION_CHECK, .callback = stop,			.info = "Stop radio playback" },
-	{ .verb = "scan_start",		.session = AFB_SESSION_CHECK, .callback = scan_start,		.info = "Start station scan" },
-	{ .verb = "scan_stop",		.session = AFB_SESSION_CHECK, .callback = scan_stop,		.info = "Stop station scan" },
-	{ .verb = "stereo_mode",	.session = AFB_SESSION_CHECK, .callback = stereo_mode,		.info = "Get/Set stereo_mode" },
-	{ .verb = "subscribe",		.session = AFB_SESSION_CHECK, .callback = subscribe,		.info = "Subscribe for an event" },
-	{ .verb = "unsubscribe",	.session = AFB_SESSION_CHECK, .callback = unsubscribe,		.info = "Unsubscribe for an event" },
+	{ .verb = "frequency",		.session = AFB_SESSION_NONE, .callback = frequency,		.info = "Get/Set frequency" },
+	{ .verb = "band",		.session = AFB_SESSION_NONE, .callback = band,			.info = "Get/Set band" },
+	{ .verb = "band_supported",	.session = AFB_SESSION_NONE, .callback = band_supported,	.info = "Check band support" },
+	{ .verb = "frequency_range",	.session = AFB_SESSION_NONE, .callback = frequency_range,	.info = "Get frequency range" },
+	{ .verb = "frequency_step",	.session = AFB_SESSION_NONE, .callback = frequency_step,	.info = "Get frequency step" },
+	{ .verb = "start",		.session = AFB_SESSION_NONE, .callback = start,			.info = "Start radio playback" },
+	{ .verb = "stop",		.session = AFB_SESSION_NONE, .callback = stop,			.info = "Stop radio playback" },
+	{ .verb = "scan_start",		.session = AFB_SESSION_NONE, .callback = scan_start,		.info = "Start station scan" },
+	{ .verb = "scan_stop",		.session = AFB_SESSION_NONE, .callback = scan_stop,		.info = "Stop station scan" },
+	{ .verb = "stereo_mode",	.session = AFB_SESSION_NONE, .callback = stereo_mode,		.info = "Get/Set stereo_mode" },
+	{ .verb = "subscribe",		.session = AFB_SESSION_NONE, .callback = subscribe,		.info = "Subscribe for an event" },
+	{ .verb = "unsubscribe",	.session = AFB_SESSION_NONE, .callback = unsubscribe,		.info = "Unsubscribe for an event" },
 	{ }
 };
 
