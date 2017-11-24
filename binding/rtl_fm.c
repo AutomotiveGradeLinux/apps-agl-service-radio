@@ -966,23 +966,24 @@ void controller_cleanup(struct controller_state *s)
 	pthread_mutex_destroy(&s->hop_m);
 }
 
-void sanity_checks(void)
+int sanity_checks(void)
 {
+	int r = 1;
 	if (controller.freq_len == 0) {
 		fprintf(stderr, "Please specify a frequency.\n");
-		exit(1);
+		r = 0;
 	}
 
 	if (controller.freq_len >= FREQUENCIES_LIMIT) {
 		fprintf(stderr, "Too many channels, maximum %i.\n", FREQUENCIES_LIMIT);
-		exit(1);
+		r = 0;
 	}
 
 	if (controller.freq_len > 1 && demod.squelch_level == 0) {
 		fprintf(stderr, "Please specify a squelch level.  Required for scanning multiple frequencies.\n");
-		exit(1);
+		r = 0;
 	}
-
+	return r;
 }
 
 int rtl_fm_init(uint32_t freq,
@@ -1045,7 +1046,8 @@ int rtl_fm_init(uint32_t freq,
 		output.rate = demod.rate_out;
 	}
 
-	sanity_checks();
+	if (!sanity_checks())
+		return -1;
 
 	if (controller.freq_len > 1) {
 		demod.terminate_on_squelch = 0;
