@@ -305,7 +305,6 @@ static void stop(struct afb_req request)
  */
 static void scan_start(struct afb_req request)
 {
-	json_object *ret_json;
 	const char *value = afb_req_value(request, "direction");
 	int valid = 0;
 	radio_scan_direction_t direction;
@@ -337,7 +336,7 @@ static void scan_start(struct afb_req request)
 		return;
 	}
 	radio_impl_scan_start(direction, scan_callback, NULL);
-	afb_req_success(request, ret_json, NULL);
+	afb_req_success(request, NULL, NULL);
 }
 
 /*
