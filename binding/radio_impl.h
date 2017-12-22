@@ -38,39 +38,44 @@ typedef enum {
 	STEREO
 } radio_stereo_mode_t;
 
-int radio_impl_init(void);
+typedef struct {
+	char *name;
 
-uint32_t radio_impl_get_frequency(void);
+	int (*init)(void);
 
-void radio_impl_set_frequency(uint32_t frequency);
+	uint32_t (*get_frequency)(void);
 
-void radio_impl_set_frequency_callback(radio_freq_callback_t callback,
+	void (*set_frequency)(uint32_t frequency);
+
+	void (*set_frequency_callback)(radio_freq_callback_t callback,
 				       void *data);
 
-radio_band_t radio_impl_get_band(void);
+	radio_band_t (*get_band)(void);
 
-void radio_impl_set_band(radio_band_t band);
+	void (*set_band)(radio_band_t band);
 
-int radio_impl_band_supported(radio_band_t band);
+	int (*band_supported)(radio_band_t band);
 
-uint32_t radio_impl_get_min_frequency(radio_band_t band);
+	uint32_t (*get_min_frequency)(radio_band_t band);
 
-uint32_t radio_impl_get_max_frequency(radio_band_t band);
+	uint32_t (*get_max_frequency)(radio_band_t band);
 
-uint32_t radio_impl_get_frequency_step(radio_band_t band);
+	uint32_t (*get_frequency_step)(radio_band_t band);
 
-void radio_impl_start(void);
+	void (*start)(void);
 
-void radio_impl_stop(void);
+	void (*stop)(void);
 
-void radio_impl_scan_start(radio_scan_direction_t direction,
+	void (*scan_start)(radio_scan_direction_t direction,
 			   radio_scan_callback_t callback,
 			   void *data);
 
-void radio_impl_scan_stop(void);
+	void (*scan_stop)(void);
 
-radio_stereo_mode_t radio_impl_get_stereo_mode(void);
+	radio_stereo_mode_t (*get_stereo_mode)(void);
 
-void radio_impl_set_stereo_mode(radio_stereo_mode_t mode);
+	void (*set_stereo_mode)(radio_stereo_mode_t mode);
+
+} radio_impl_ops_t;
 
 #endif /* _RADIO_IMPL_H */

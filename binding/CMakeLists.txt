@@ -21,12 +21,18 @@
 PROJECT_TARGET_ADD(radio-binding)
 
 	# Define project Targets
-	add_library(${TARGET_NAME} MODULE
+	set(radio_SOURCES
 		radio-binding.c
 		radio_output.c
 		radio_impl_rtlsdr.c
 		rtl_fm.c
 		convenience/convenience.c)
+	if(HAVE_KINGFISHER)
+		set(radio_SOURCES ${radio_SOURCES} radio_impl_kingfisher.c)
+		add_definitions(-DHAVE_KINGFISHER)
+	endif()
+
+	add_library(${TARGET_NAME} MODULE ${radio_SOURCES})
 
 	# Binder exposes a unique public entry point
 	SET_TARGET_PROPERTIES(${TARGET_NAME} PROPERTIES
@@ -42,4 +48,3 @@ PROJECT_TARGET_ADD(radio-binding)
 	# installation directory
 	INSTALL(TARGETS ${TARGET_NAME}
 		LIBRARY DESTINATION ${BINDINGS_INSTALL_DIR})
-

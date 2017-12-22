@@ -35,7 +35,7 @@ typedef struct {
 
 static fm_band_plan_t known_fm_band_plans[5] = {
 	{ .name = "US", .min = 87900000, .max = 107900000, .step = 200000 },
-	{ .name = "JP", .min = 76100000, .max = 89900000, .step = 100000 },
+	{ .name = "JP", .min = 76000000, .max = 95000000, .step = 100000 },
 	{ .name = "EU", .min = 87500000, .max = 108000000, .step = 50000 },
 	{ .name = "ITU-1", .min = 87500000, .max = 108000000, .step = 50000 },
 	{ .name = "ITU-2", .min = 87900000, .max = 107900000, .step = 50000 }
@@ -46,13 +46,16 @@ static bool present;
 static bool active;
 static uint32_t current_frequency;
 
+static uint32_t rtlsdr_get_min_frequency(radio_band_t band);
+static void rtlsdr_scan_stop(void);
+
 static void rtl_output_callback(int16_t *result, int result_len, void *ctx)
 {
     if(active)
 	    radio_output_write((char*) result, result_len * 2);
 }
 
-int radio_impl_init(void)
+static int rtlsdr_init(void)
 {
 	GKeyFile* conf_file;
 	int conf_file_present = 0;
@@ -91,7 +94,7 @@ int radio_impl_init(void)
 	}
 	fprintf(stderr, "Using FM Bandplan: %s\n", known_fm_band_plans[bandplan].name);
 
-	current_frequency = radio_impl_get_min_frequency(BAND_FM);
+	current_frequency = rtlsdr_get_min_frequency(BAND_FM);
 	if(rtl_fm_init(current_frequency, 200000, 48000, rtl_output_callback, NULL) < 0) {
 		return -1;
 	}
@@ -106,8 +109,6 @@ int radio_impl_init(void)
 					   "radio",
 					   "scan_squelch_level",
 					   &error);
-		//error->code != G_KEY_FILE_ERROR_KEY_NOT_FOUND &&
-		//error->code != G_KEY_FILE_ERROR_INVALID_VALUE) {
 		if(!error) {
 			fprintf(stderr, "Scanning squelch level set to %d\n", n);
 			rtl_fm_scan_set_squelch_level(n);
@@ -130,12 +131,12 @@ int radio_impl_init(void)
 	return 0;
 }
 
-uint32_t radio_impl_get_frequency(void)
+static uint32_t rtlsdr_get_frequency(void)
 {
 	return current_frequency;
 }
 
-void radio_impl_set_frequency(uint32_t frequency)
+static void rtlsdr_set_frequency(uint32_t frequency)
 {
 	if(!present)
 		return;
@@ -144,45 +145,45 @@ void radio_impl_set_frequency(uint32_t frequency)
 	   frequency > known_fm_band_plans[bandplan].max)
 		return;
 
-	radio_impl_scan_stop();
+	rtlsdr_scan_stop();
 	current_frequency = frequency;
 	rtl_fm_set_freq(frequency);
 }
 
-void radio_impl_set_frequency_callback(radio_freq_callback_t callback,
-				       void *data)
+static void rtlsdr_set_frequency_callback(radio_freq_callback_t callback,
+					  void *data)
 {
 	rtl_fm_set_freq_callback(callback, data);
 }
 
-radio_band_t radio_impl_get_band(void)
+static radio_band_t rtlsdr_get_band(void)
 {
 	return BAND_FM;
 }
 
-void radio_impl_set_band(radio_band_t band)
+static void rtlsdr_set_band(radio_band_t band)
 {
 	// We only support FM, so do nothing
 }
 
-int radio_impl_band_supported(radio_band_t band)
+static int rtlsdr_band_supported(radio_band_t band)
 {
 	if(band == BAND_FM)
 		return 1;
 	return 0;
 }
 
-uint32_t radio_impl_get_min_frequency(radio_band_t band)
+static uint32_t rtlsdr_get_min_frequency(radio_band_t band)
 {
 	return known_fm_band_plans[bandplan].min;
 }
 
-uint32_t radio_impl_get_max_frequency(radio_band_t band)
+static uint32_t rtlsdr_get_max_frequency(radio_band_t band)
 {
 	return known_fm_band_plans[bandplan].max;
 }
 
-uint32_t radio_impl_get_frequency_step(radio_band_t band)
+static uint32_t rtlsdr_get_frequency_step(radio_band_t band)
 {
 	uint32_t ret = 0;
 
@@ -199,7 +200,7 @@ uint32_t radio_impl_get_frequency_step(radio_band_t band)
 	return ret;
 }
 
-void radio_impl_start(void)
+static void rtlsdr_start(void)
 {
 	if(!present)
 		return;
@@ -213,7 +214,7 @@ void radio_impl_start(void)
 	}
 }
 
-void radio_impl_stop(void)
+static void rtlsdr_stop(void)
 {
 	if(!present)
 		return;
@@ -226,29 +227,49 @@ void radio_impl_stop(void)
 	}
 }
 
-void radio_impl_scan_start(radio_scan_direction_t direction,
-			   radio_scan_callback_t callback,
-			   void *data)
+static void rtlsdr_scan_start(radio_scan_direction_t direction,
+			      radio_scan_callback_t callback,
+			      void *data)
 {
 	rtl_fm_scan_start(direction == SCAN_FORWARD ? 0 : 1,
 			  callback,
 			  data,
-			  radio_impl_get_frequency_step(BAND_FM),
-			  radio_impl_get_min_frequency(BAND_FM),
-			  radio_impl_get_max_frequency(BAND_FM));
+			  rtlsdr_get_frequency_step(BAND_FM),
+			  rtlsdr_get_min_frequency(BAND_FM),
+			  rtlsdr_get_max_frequency(BAND_FM));
 }
 
-void radio_impl_scan_stop(void)
+static void rtlsdr_scan_stop(void)
 {
 	rtl_fm_scan_stop();
 }
 
-radio_stereo_mode_t radio_impl_get_stereo_mode(void)
+static radio_stereo_mode_t rtlsdr_get_stereo_mode(void)
 {
 	return STEREO;
 }
 
-void radio_impl_set_stereo_mode(radio_stereo_mode_t mode)
+static void rtlsdr_set_stereo_mode(radio_stereo_mode_t mode)
 {
 	// We only support stereo, so do nothing
 }
+
+radio_impl_ops_t rtlsdr_impl_ops = {
+	.name = "RTL-SDR USB adapter",
+	.init = rtlsdr_init,
+	.get_frequency = rtlsdr_get_frequency,
+	.set_frequency = rtlsdr_set_frequency,
+	.set_frequency_callback = rtlsdr_set_frequency_callback,
+	.get_band = rtlsdr_get_band,
+	.set_band = rtlsdr_set_band,
+	.band_supported = rtlsdr_band_supported,
+	.get_min_frequency = rtlsdr_get_min_frequency,
+	.get_max_frequency = rtlsdr_get_max_frequency,
+	.get_frequency_step = rtlsdr_get_frequency_step,
+	.start = rtlsdr_start,
+	.stop = rtlsdr_stop,
+	.scan_start = rtlsdr_scan_start,
+	.scan_stop = rtlsdr_scan_stop,
+	.get_stereo_mode = rtlsdr_get_stereo_mode,
+	.set_stereo_mode = rtlsdr_set_stereo_mode
+};
