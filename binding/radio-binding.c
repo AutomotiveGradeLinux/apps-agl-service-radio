@@ -29,6 +29,12 @@
 #include <afb/afb-service-itf.h>
 
 #include "radio_impl.h"
+#include "radio_impl_rtlsdr.h"
+#ifdef HAVE_KINGFISHER
+#include "radio_impl_kingfisher.h"
+#endif
+
+static radio_impl_ops_t *radio_impl_ops;
 
 static struct afb_event freq_event;
 static struct afb_event scan_event;
@@ -71,14 +77,14 @@ static void frequency(struct afb_req request)
 		char *p;
 		frequency = strtoul(value, &p, 10);
 		if(frequency && *p == '\0') {
-			radio_impl_set_frequency(frequency);
+			radio_impl_ops->set_frequency(frequency);
 		} else {
 			afb_req_fail(request, "failed", "Invalid scan direction");
 			return;
 		}
 	}
 	ret_json = json_object_new_object();
-	frequency = radio_impl_get_frequency();
+	frequency = radio_impl_ops->get_frequency();
 	json_object_object_add(ret_json, "frequency", json_object_new_int((int32_t) frequency));
 	afb_req_success(request, ret_json, NULL);
 }
@@ -119,14 +125,14 @@ static void band(struct afb_req request)
 			}
 		}
 		if(valid) {
-			radio_impl_set_band(band);
+			radio_impl_ops->set_band(band);
 		} else {
 			afb_req_fail(request, "failed", "Invalid band");
 			return;
 		}
 	}
 	ret_json = json_object_new_object();
-	band = radio_impl_get_band();
+	band = radio_impl_ops->get_band();
 	sprintf(band_name, "%s", band == BAND_AM ? "AM" : "FM");
 	json_object_object_add(ret_json, "band", json_object_new_string(band_name));
 	afb_req_success(request, ret_json, NULL);
@@ -174,7 +180,7 @@ static void band_supported(struct afb_req request)
 	ret_json = json_object_new_object();
 	json_object_object_add(ret_json,
 			       "supported",
-			       json_object_new_int(radio_impl_band_supported(band)));
+			       json_object_new_int(radio_impl_ops->band_supported(band)));
 	afb_req_success(request, ret_json, NULL);
 }
 
@@ -220,8 +226,8 @@ static void frequency_range(struct afb_req request)
 		return;
 	}
 	ret_json = json_object_new_object();
-	min_frequency = radio_impl_get_min_frequency(band);
-	max_frequency = radio_impl_get_max_frequency(band);
+	min_frequency = radio_impl_ops->get_min_frequency(band);
+	max_frequency = radio_impl_ops->get_max_frequency(band);
 	json_object_object_add(ret_json, "min", json_object_new_int((int32_t) min_frequency));
 	json_object_object_add(ret_json, "max", json_object_new_int((int32_t) max_frequency));
 	afb_req_success(request, ret_json, NULL);
@@ -268,7 +274,7 @@ static void frequency_step(struct afb_req request)
 		return;
 	}
 	ret_json = json_object_new_object();
-	step = radio_impl_get_frequency_step(band);
+	step = radio_impl_ops->get_frequency_step(band);
 	json_object_object_add(ret_json, "step", json_object_new_int((int32_t) step));
 	afb_req_success(request, ret_json, NULL);
 }
@@ -281,7 +287,7 @@ static void frequency_step(struct afb_req request)
  */
 static void start(struct afb_req request)
 {
-	radio_impl_start();
+	radio_impl_ops->start();
 	afb_req_success(request, NULL, NULL);
 }
 
@@ -293,7 +299,7 @@ static void start(struct afb_req request)
  */
 static void stop(struct afb_req request)
 {
-	radio_impl_stop();
+	radio_impl_ops->stop();
 	afb_req_success(request, NULL, NULL);
 }
 
@@ -335,7 +341,7 @@ static void scan_start(struct afb_req request)
 		afb_req_fail(request, "failed", "Invalid direction");
 		return;
 	}
-	radio_impl_scan_start(direction, scan_callback, NULL);
+	radio_impl_ops->scan_start(direction, scan_callback, NULL);
 	afb_req_success(request, NULL, NULL);
 }
 
@@ -347,7 +353,7 @@ static void scan_start(struct afb_req request)
  */
 static void scan_stop(struct afb_req request)
 {
-	radio_impl_scan_stop();
+	radio_impl_ops->scan_stop();
 	afb_req_success(request, NULL, NULL);
 }
 
@@ -387,14 +393,14 @@ static void stereo_mode(struct afb_req request)
 			}
 		}
 		if(valid) {
-			radio_impl_set_stereo_mode(mode);
+			radio_impl_ops->set_stereo_mode(mode);
 		} else {
 			afb_req_fail(request, "failed", "Invalid mode");
 			return;
 		}
 	}
 	ret_json = json_object_new_object();
-	mode = radio_impl_get_stereo_mode();
+	mode = radio_impl_ops->get_stereo_mode();
 	sprintf(mode_name, "%s", mode == MONO ? "mono" : "stereo");
 	json_object_object_add(ret_json, "mode", json_object_new_string(mode_name));
 	afb_req_success(request, ret_json, NULL);
@@ -467,11 +473,20 @@ static int init()
 	freq_event = afb_daemon_make_event("frequency");
 	scan_event = afb_daemon_make_event("station_found");
 
-	rc = radio_impl_init();
-	if(rc == 0) {
-		radio_impl_set_frequency_callback(freq_callback, NULL);
+	// Look for RTL-SDR USB adapter
+	radio_impl_ops = &rtlsdr_impl_ops;
+	rc = radio_impl_ops->init();
+#ifdef HAVE_KINGFISHER
+	if(rc != 0) {
+		// Look for Kingfisher Si4689
+		radio_impl_ops = &kf_impl_ops;
+		rc = radio_impl_ops->init();
 	}
-	
+#endif
+	if(rc == 0) {
+		printf("%s found\n", radio_impl_ops->name);
+		radio_impl_ops->set_frequency_callback(freq_callback, NULL);
+	}
 	return rc;
 }
 
