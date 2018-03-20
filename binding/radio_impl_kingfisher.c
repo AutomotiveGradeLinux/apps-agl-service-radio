@@ -140,10 +140,10 @@ static int kf_init(void)
 		return -1;
 	}
 
-	fprintf(stderr, "Using FM Bandplan: %s\n", known_fm_band_plans[bandplan].name);
+	fprintf(stderr, "Using FM Bandplan [KF]: %s\n", known_fm_band_plans[bandplan].name);
 	current_frequency = kf_get_min_frequency(BAND_FM);
 	sprintf(cmd,
-		"%s /dev/i2c-11 0x65 -b fm -p %s -t %d -u %d -c %d",
+		"%s /dev/i2c-12 0x65 -b fm -p %s -t %d -u %d -c %d",
 		SI_CTL,
 		known_fm_band_plans[bandplan].name,
 		scan_valid_snr_threshold,
@@ -209,7 +209,7 @@ static void kf_set_frequency(uint32_t frequency)
 		return;
 
 	kf_scan_stop();
-	sprintf(cmd, "%s /dev/i2c-11 0x65 -c %d", SI_CTL, frequency / 1000);
+	sprintf(cmd, "%s /dev/i2c-12 0x65 -c %d", SI_CTL, frequency / 1000);
 	rc = system(cmd);
 	if(rc == 0)
 		current_frequency = frequency;
@@ -316,7 +316,7 @@ static void kf_scan_start(radio_scan_direction_t direction,
 		return;
 
 	scanning = true;
-	sprintf(cmd, "%s /dev/i2c-11 0x65 -l %s", SI_CTL, direction == SCAN_FORWARD ? "up" : "down");
+	sprintf(cmd, "%s /dev/i2c-12 0x65 -l %s", SI_CTL, direction == SCAN_FORWARD ? "up" : "down");
 	fp = popen(cmd, "r");
 	if(fp == NULL) {
 		fprintf(stderr, "Could not run: %s!\n", cmd);
