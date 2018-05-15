@@ -26,7 +26,6 @@
 #include <json-c/json.h>
 #define AFB_BINDING_VERSION 2
 #include <afb/afb-binding.h>
-#include <afb/afb-service-itf.h>
 
 #include "radio_impl.h"
 #include "radio_impl_rtlsdr.h"
