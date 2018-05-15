@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Konsulko Group
+ * Copyright (C) 2017,2018 Konsulko Group
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 
 #include "radio_impl.h"
 
+#define SI_NODE	"/sys/firmware/devicetree/base/si468x@0/compatible"
 #define SI_INIT	"/usr/bin/si_init"
 #define SI_CTL	"/usr/bin/si_ctl"
 
@@ -62,13 +63,17 @@ static int kf_init(void)
 {
 	GKeyFile* conf_file;
 	int conf_file_present = 0;
+	struct stat statbuf;
 	char *value_str;
 	char cmd[128];
 	int rc;
 	char *output_sink;
-	struct stat statbuf;
 
 	if(present)
+		return 0;
+
+	// Check for Kingfisher SI486x devicetree node
+	if(stat(SI_NODE, &statbuf) != 0)
 		return -1;
 
 	// Check for Cogent's si_init script and si_ctl utility
@@ -174,8 +179,8 @@ static int kf_init(void)
 	// Set up loopback to output sink
 	output_sink = getenv("PULSE_SINK");
 	if(!output_sink) {
-		// On non-4A, loopback to the default output sink
-		output_sink = "0";
+		// On non-4A, loopback to the sink for the on-board Starter Kit M3/H3 audio
+		output_sink = "1";
 	}
 	sprintf(cmd, "pactl load-module module-loopback source=alsa_input.radio sink=%s", output_sink);
 	rc = system(cmd);

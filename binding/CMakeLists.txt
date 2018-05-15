@@ -24,13 +24,10 @@ PROJECT_TARGET_ADD(radio-binding)
 	set(radio_SOURCES
 		radio-binding.c
 		radio_output.c
+		radio_impl_kingfisher.c
 		radio_impl_rtlsdr.c
 		rtl_fm.c
 		convenience/convenience.c)
-	if(HAVE_KINGFISHER)
-		set(radio_SOURCES ${radio_SOURCES} radio_impl_kingfisher.c)
-		add_definitions(-DHAVE_KINGFISHER)
-	endif()
 
 	add_library(${TARGET_NAME} MODULE ${radio_SOURCES})
 
