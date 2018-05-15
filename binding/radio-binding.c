@@ -30,9 +30,7 @@
 
 #include "radio_impl.h"
 #include "radio_impl_rtlsdr.h"
-#ifdef HAVE_KINGFISHER
 #include "radio_impl_kingfisher.h"
-#endif
 
 static radio_impl_ops_t *radio_impl_ops;
 
@@ -476,13 +474,11 @@ static int init()
 	// Look for RTL-SDR USB adapter
 	radio_impl_ops = &rtlsdr_impl_ops;
 	rc = radio_impl_ops->init();
-#ifdef HAVE_KINGFISHER
 	if(rc != 0) {
 		// Look for Kingfisher Si4689
 		radio_impl_ops = &kf_impl_ops;
 		rc = radio_impl_ops->init();
 	}
-#endif
 	if(rc == 0) {
 		printf("%s found\n", radio_impl_ops->name);
 		radio_impl_ops->set_frequency_callback(freq_callback, NULL);
