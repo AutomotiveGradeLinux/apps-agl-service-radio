@@ -12,6 +12,10 @@
 		<param name="urn:AGL:permission::public:no-htdocs" value="required" />
 	</feature>
 
+	<feature name="urn:AGL:widget:file-properties">
+		<param name="bin/rtl_fm_helper" value="executable" />
+	</feature>
+
 	<feature name="urn:AGL:widget:provided-api">
 		<param name="radio" value="ws" />
 	</feature>

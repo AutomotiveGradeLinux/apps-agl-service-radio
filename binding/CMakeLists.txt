@@ -1,5 +1,6 @@
 ###########################################################################
 # Copyright 2015, 2016, 2017 IoT.bzh
+# Copyright (C) 2018 Konsulko Group
 #
 # author: Fulup Ar Foll <fulup@iot.bzh>
 # contrib: Romain Forlot <romain.forlot@iot.bzh>
@@ -23,11 +24,8 @@ PROJECT_TARGET_ADD(radio-binding)
 	# Define project Targets
 	set(radio_SOURCES
 		radio-binding.c
-		radio_output.c
 		radio_impl_kingfisher.c
-		radio_impl_rtlsdr.c
-		rtl_fm.c
-		convenience/convenience.c)
+		radio_impl_rtlsdr.c)
 
 	add_library(${TARGET_NAME} MODULE ${radio_SOURCES})
 
@@ -45,3 +43,25 @@ PROJECT_TARGET_ADD(radio-binding)
 	# installation directory
 	INSTALL(TARGETS ${TARGET_NAME}
 		LIBRARY DESTINATION ${BINDINGS_INSTALL_DIR})
+
+# Add helper program target
+PROJECT_TARGET_ADD(rtl_fm_helper)
+
+	# Define project targets
+	set(helper_SOURCES
+		${TARGET_NAME}.c
+		rtl_fm.c
+		convenience/convenience.c
+		radio_output.c)
+	PKG_CHECK_MODULES(SOUND REQUIRED libpulse-simple)
+
+	add_executable(${TARGET_NAME} ${helper_SOURCES})
+
+	SET_TARGET_PROPERTIES(${TARGET_NAME} PROPERTIES
+		LABELS "EXECUTABLE"
+		OUTPUT_NAME ${TARGET_NAME}
+	)
+
+	PKG_CHECK_MODULES(RTLSDR REQUIRED librtlsdr)
+	TARGET_LINK_LIBRARIES(${TARGET_NAME}
+		${RTLSDR_LIBRARIES} ${SOUND_LIBRARIES} ${link_libraries} m)

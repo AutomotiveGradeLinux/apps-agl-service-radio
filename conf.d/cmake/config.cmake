@@ -1,5 +1,6 @@
 ###########################################################################
 # Copyright 2015, 2016, 2017 IoT.bzh
+# Copyright (C) 2018 Konsulko Group
 #
 # author: Fulup Ar Foll <fulup@iot.bzh>
 #
@@ -69,8 +70,6 @@ set (PKG_REQUIRED_LIST
 	json-c
 	libsystemd>=222
 	afb-daemon
-	librtlsdr
-	libpulse-simple
 	glib-2.0
 	gobject-2.0
 )
