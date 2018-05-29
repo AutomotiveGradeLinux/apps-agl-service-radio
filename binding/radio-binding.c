@@ -466,22 +466,53 @@ static const struct afb_verb_v2 verbs[]= {
 static int init()
 {
 	int rc;
+	char *output = NULL;
 
+#ifdef HAVE_4A_FRAMEWORK
+	json_object *response;
+
+	json_object *jsonData = json_object_new_object();
+	json_object_object_add(jsonData, "audio_role", json_object_new_string("Radio"));
+	json_object_object_add(jsonData, "endpoint_type", json_object_new_string("sink"));
+	rc = afb_service_call_sync("ahl-4a", "stream_open", jsonData, &response);
+	if(!rc) {
+		json_object *valJson = NULL;
+		json_object *val = NULL;
+
+		rc = json_object_object_get_ex(response, "response", &valJson);
+		if(rc) {
+			rc = json_object_object_get_ex(valJson, "device_uri", &val);
+			if(rc) {
+				const char *jres_pcm = json_object_get_string(val);
+				char *p;
+				if((p = strchr(jres_pcm, ':'))) {
+					output = strdup(p + 1);
+				}
+			}
+		}
+	} else {
+		AFB_ERROR("afb_service_call_sync failed\n");
+		return rc;
+	}
+#endif
+
+	// Initialize event structures
 	freq_event = afb_daemon_make_event("frequency");
 	scan_event = afb_daemon_make_event("station_found");
 
 	// Look for RTL-SDR USB adapter
 	radio_impl_ops = &rtlsdr_impl_ops;
-	rc = radio_impl_ops->init();
+	rc = radio_impl_ops->init(output);
 	if(rc != 0) {
 		// Look for Kingfisher Si4689
 		radio_impl_ops = &kf_impl_ops;
-		rc = radio_impl_ops->init();
+		rc = radio_impl_ops->init(output);
 	}
 	if(rc == 0) {
 		printf("%s found\n", radio_impl_ops->name);
 		radio_impl_ops->set_frequency_callback(freq_callback, NULL);
 	}
+	free(output);
 	return rc;
 }
 
