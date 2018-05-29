@@ -125,7 +125,7 @@ static pid_t popen2(char *command, int *in_fd, int *out_fd)
 	return pid;
 }
 
-static int rtlsdr_init(void)
+static int rtlsdr_init(const char *output)
 {
 	GKeyFile *conf_file;
 	char *value_str;
@@ -181,6 +181,12 @@ static int rtlsdr_init(void)
 	if(system(helper_path) != 0) {
 		free(helper_path);
 		return -1;
+	}
+
+	if(output) {
+		// Indicate desired output to helper
+		AFB_INFO("Setting RADIO_OUTPUT=%s", output);
+		setenv("RADIO_OUTPUT", output, 1);
 	}
 
 	// Run helper

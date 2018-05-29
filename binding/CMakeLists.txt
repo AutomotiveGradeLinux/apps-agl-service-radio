@@ -26,6 +26,11 @@ PROJECT_TARGET_ADD(radio-binding)
 		radio-binding.c
 		radio_impl_kingfisher.c
 		radio_impl_rtlsdr.c)
+	if(HAVE_4A_FRAMEWORK)
+		add_definitions(-DHAVE_4A_FRAMEWORK)
+	endif()
+
+	PKG_CHECK_MODULES(SOUND REQUIRED gstreamer-1.0)
 
 	add_library(${TARGET_NAME} MODULE ${radio_SOURCES})
 
@@ -38,7 +43,8 @@ PROJECT_TARGET_ADD(radio-binding)
 	)
 
 	# Library dependencies (include updates automatically)
-	TARGET_LINK_LIBRARIES(${TARGET_NAME} ${link_libraries})
+	TARGET_COMPILE_OPTIONS(${TARGET_NAME} PUBLIC ${SOUND_CFLAGS})
+	TARGET_LINK_LIBRARIES(${TARGET_NAME} ${SOUND_LIBRARIES} ${link_libraries})
 
 	# installation directory
 	INSTALL(TARGETS ${TARGET_NAME}
@@ -51,9 +57,16 @@ PROJECT_TARGET_ADD(rtl_fm_helper)
 	set(helper_SOURCES
 		${TARGET_NAME}.c
 		rtl_fm.c
-		convenience/convenience.c
-		radio_output.c)
-	PKG_CHECK_MODULES(SOUND REQUIRED libpulse-simple)
+		convenience/convenience.c)
+	if(HAVE_4A_FRAMEWORK)
+		set(helper_SOURCES ${helper_SOURCES} radio_output_gstreamer.c)
+		PKG_CHECK_MODULES(helper_SOUND REQUIRED gstreamer-1.0)
+	else()
+		set(helper_SOURCES ${helper_SOURCES} radio_output_pulse.c)
+		PKG_CHECK_MODULES(helper_SOUND REQUIRED libpulse-simple)
+	endif()
+
+	PKG_CHECK_MODULES(helper_RTLSDR REQUIRED librtlsdr)
 
 	add_executable(${TARGET_NAME} ${helper_SOURCES})
 
@@ -62,6 +75,6 @@ PROJECT_TARGET_ADD(rtl_fm_helper)
 		OUTPUT_NAME ${TARGET_NAME}
 	)
 
-	PKG_CHECK_MODULES(RTLSDR REQUIRED librtlsdr)
+	TARGET_COMPILE_OPTIONS(${TARGET_NAME} PUBLIC ${helper_SOUND_CFLAGS})
 	TARGET_LINK_LIBRARIES(${TARGET_NAME}
-		${RTLSDR_LIBRARIES} ${SOUND_LIBRARIES} ${link_libraries} m)
+		${helper_RTLSDR_LIBRARIES} ${helper_SOUND_LIBRARIES} ${link_libraries} m)

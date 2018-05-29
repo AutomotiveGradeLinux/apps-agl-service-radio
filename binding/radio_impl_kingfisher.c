@@ -22,12 +22,18 @@
 #include <glib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <gst/gst.h>
+#define AFB_BINDING_VERSION 2
+#include <afb/afb-binding.h>
 
 #include "radio_impl.h"
 
 #define SI_NODE	"/sys/firmware/devicetree/base/si468x@0/compatible"
 #define SI_INIT	"/usr/bin/si_init"
 #define SI_CTL	"/usr/bin/si_ctl"
+
+#define GST_SINK_OPT_LEN	128
+#define GST_PIPELINE_LEN	256
 
 // Structure to describe FM band plans, all values in Hz.
 typedef struct {
@@ -47,11 +53,14 @@ static fm_band_plan_t known_fm_band_plans[5] = {
 
 static unsigned int bandplan = 0;
 static bool present;
-static bool active;
 static uint32_t current_frequency;
 static int scan_valid_snr_threshold = 128;
 static int scan_valid_rssi_threshold = 128;
 static bool scanning = false;
+
+// GStreamer state
+static GstElement *pipeline;
+static bool running;
 
 static void (*freq_callback)(uint32_t, void*);
 static void *freq_callback_data;
@@ -59,7 +68,7 @@ static void *freq_callback_data;
 static uint32_t kf_get_min_frequency(radio_band_t band);
 static void kf_scan_stop(void);
 
-static int kf_init(void)
+static int kf_init(const char *output)
 {
 	GKeyFile* conf_file;
 	int conf_file_present = 0;
@@ -67,7 +76,8 @@ static int kf_init(void)
 	char *value_str;
 	char cmd[128];
 	int rc;
-	char *output_sink;
+	char output_sink_opt[GST_SINK_OPT_LEN];
+	char gst_pipeline_str[GST_PIPELINE_LEN];
 
 	if(present)
 		return 0;
@@ -122,7 +132,7 @@ static int kf_init(void)
 					   "scan_valid_snr_threshold",
 					   &error);
 		if(!error) {
-			fprintf(stderr, "Scan valid SNR level set to %d\n", n);
+			AFB_INFO("Scan valid SNR level set to %d", n);
 			scan_valid_snr_threshold = n;
 		}
 
@@ -132,7 +142,7 @@ static int kf_init(void)
 					   "scan_valid_rssi_threshold",
 					   &error);
 		if(!error) {
-			fprintf(stderr, "Scan valid SNR level set to %d\n", n);
+			AFB_INFO("Scan valid SNR level set to %d", n);
 			scan_valid_rssi_threshold = n;
 		}
 
@@ -141,11 +151,11 @@ static int kf_init(void)
 
 	rc = system(SI_INIT);
 	if(rc != 0) {
-		fprintf(stderr, "si_init failed, rc = %d", rc);
+		AFB_ERROR("si_init failed, rc = %d", rc);
 		return -1;
 	}
 
-	fprintf(stderr, "Using FM Bandplan: %s\n", known_fm_band_plans[bandplan].name);
+	AFB_INFO("Using FM Bandplan: %s", known_fm_band_plans[bandplan].name);
 	current_frequency = kf_get_min_frequency(BAND_FM);
 	sprintf(cmd,
 		"%s /dev/i2c-11 0x65 -b fm -p %s -t %d -u %d -c %d",
@@ -156,38 +166,49 @@ static int kf_init(void)
 		current_frequency / 1000);
 	rc = system(cmd);
 	if(rc != 0) {
-		fprintf(stderr, "%s failed, rc = %d", SI_CTL, rc);
+		AFB_ERROR("%s failed, rc = %d", SI_CTL, rc);
 		return -1;
 	}
 
-	// Handle 4A disabling PA udev module
-	if(system("pactl list sources short |grep -q alsa_input.radio") != 0) {
-		// Set up radio source
-		if(system("pactl load-module module-alsa-source device=hw:radio,0 name=radio") != 0) {
-			fprintf(stderr, "radio PA source creation failed!\n");
+	// Initialize GStreamer
+	gst_init(NULL, NULL);
+
+	if(output) {
+		AFB_INFO("Using output device %s", output);
+		rc = snprintf(output_sink_opt, GST_SINK_OPT_LEN, " device=%s", output);
+		if(rc >= GST_SINK_OPT_LEN) {
+			AFB_ERROR("output device string too long");
 			return -1;
 		}
+	} else {
+		output_sink_opt[0] = '\0';
 	}
-
-	// Set initial state to muted
-	rc = system("pactl set-source-mute alsa_input.radio 1");
-	if(rc != 0) {
-		fprintf(stderr, "pactl failed, rc = %d", rc);
+	// NOTE: If muting without pausing is desired, it can likely be done
+	//       by adding a "volume" element to the pipeline before the sink,
+	//       and setting the volume to 0 to mute.
+#ifdef HAVE_4A_FRAMEWORK
+	rc = snprintf(gst_pipeline_str,
+		      GST_PIPELINE_LEN,
+		      "alsasrc device=hw:radio ! queue ! audioconvert ! audioresample ! alsasink%s",
+		      output_sink_opt);
+#else
+	// Use PulseAudio output for compatibility with audiomanager / module_router
+	rc = snprintf(gst_pipeline_str,
+		      GST_PIPELINE_LEN,
+		      "alsasrc device=hw:radio ! queue ! audioconvert ! audioresample ! pulsesink stream-properties=\"props,media.role=radio\"");
+#endif
+	if(rc >= GST_PIPELINE_LEN) {
+		AFB_ERROR("pipeline string too long");
+		return -1;
+	}
+	pipeline = gst_parse_launch(gst_pipeline_str, NULL);
+	if(!pipeline) {
+		AFB_ERROR("pipeline construction failed!");
 		return -1;
 	}
 
-	// Set up loopback to output sink
-	output_sink = getenv("PULSE_SINK");
-	if(!output_sink) {
-		// On non-4A, loopback to the sink for the on-board Starter Kit M3/H3 audio
-		output_sink = "1";
-	}
-	sprintf(cmd, "pactl load-module module-loopback source=alsa_input.radio sink=%s", output_sink);
-	rc = system(cmd);
-	if(rc != 0) {
-		fprintf(stderr, "pactl failed, rc = %d", rc);
-		return -1;
-	}
+	// Start pipeline in paused state
+	gst_element_set_state(pipeline, GST_STATE_PAUSED);
 
 	present = true;
 	return 0;
@@ -281,26 +302,28 @@ static void kf_start(void)
 	if(!present)
 		return;
 
-	if(!active) {
-		rc = system("pactl set-source-mute alsa_input.radio 0");
-		if(rc != 0)
-			fprintf(stderr, "pactl set-source-mute failed!\n");
-		active = true;
+	if(!running) {
+		// Start pipeline
+		gst_element_set_state(pipeline, GST_STATE_PLAYING);
+		running = true;
 	}
 }
 
 static void kf_stop(void)
 {
-	int rc;
+	GstEvent *event;
 
-	if(!present)
-		return;
+	if(present && running) {
+		// Stop pipeline
+		running = false;
+		gst_element_set_state(pipeline, GST_STATE_PAUSED);
 
-	if(active) {
-		active = false;
-		rc = system("pactl set-source-mute alsa_input.radio 1");
-		if(rc != 0)
-			fprintf(stderr, "pactl set-source-mute failed!\n");
+		// Flush pipeline
+		// This seems required to avoid stutters on starts after a stop
+		event = gst_event_new_flush_start();
+		gst_element_send_event(GST_ELEMENT(pipeline), event);
+		event = gst_event_new_flush_stop(TRUE);
+		gst_element_send_event(GST_ELEMENT(pipeline), event); 
 	}
 }
 
@@ -324,14 +347,14 @@ static void kf_scan_start(radio_scan_direction_t direction,
 	sprintf(cmd, "%s /dev/i2c-11 0x65 -l %s", SI_CTL, direction == SCAN_FORWARD ? "up" : "down");
 	fp = popen(cmd, "r");
 	if(fp == NULL) {
-		fprintf(stderr, "Could not run: %s!\n", cmd);
+		AFB_ERROR("Could not run: %s!", cmd);
 		return;
 	}
 	// Look for "Frequency:" in output
 	while(fgets(line, 128, fp) != NULL) {
 		if(strncmp("Frequency:", line, 10) == 0) {
 			new_frequency = atoi(line + 10);
-			//fprintf(stderr, "%s: got new_frequency = %d\n", __FUNCTION__, new_frequency);
+			//AFB_DEBUG("%s: got new_frequency = %d", __FUNCTION__, new_frequency);
 			break;
 		}
 	}
