@@ -65,6 +65,7 @@ PROJECT_TARGET_ADD(rtl_fm_helper)
 	endif()
 
 	PKG_CHECK_MODULES(helper_RTLSDR REQUIRED librtlsdr)
+	PKG_CHECK_MODULES(helper_LIBUSB REQUIRED libusb-1.0)
 
 	add_executable(${TARGET_NAME} ${helper_SOURCES})
 
@@ -75,4 +76,4 @@ PROJECT_TARGET_ADD(rtl_fm_helper)
 
 	TARGET_COMPILE_OPTIONS(${TARGET_NAME} PUBLIC ${helper_SOUND_CFLAGS})
 	TARGET_LINK_LIBRARIES(${TARGET_NAME}
-		${helper_RTLSDR_LIBRARIES} ${helper_SOUND_LIBRARIES} ${link_libraries} m)
+		${helper_RTLSDR_LIBRARIES} ${helper_LIBUSB_LIBRARIES} ${helper_SOUND_LIBRARIES} ${link_libraries} m)
