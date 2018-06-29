@@ -20,7 +20,6 @@
 # Project Info
 # ------------------
 set(PROJECT_NAME agl-service-radio)
-set(PROJECT_VERSION "1.0")
 set(PROJECT_PRETTY_NAME "Radio binding service")
 set(PROJECT_DESCRIPTION "Expose Radio Low Level APIs through AGL Framework")
 set(PROJECT_ICON "icon.png")
@@ -45,7 +44,7 @@ set(PROJECT_APP_TEMPLATES_DIR "conf.d/app-templates")
 
 # Compilation Mode (DEBUG, RELEASE)
 # ----------------------------------
-set(CMAKE_BUILD_TYPE "DEBUG")
+set(BUILD_TYPE "DEBUG")
 
 # Kernel selection if needed. You can choose between a
 # mandatory version to impose a minimal version.
@@ -83,11 +82,8 @@ add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-pthread>)
 # -----------------------------
 list (APPEND link_libraries -pthread)
 
-# (BUG!!!) as PKG_CONFIG_PATH does not work [should be an env variable]
 # ---------------------------------------------------------------------
-set(CMAKE_INSTALL_PREFIX $ENV{HOME}/opt)
-set(CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig ${CMAKE_INSTALL_PREFIX}/lib/pkgconfig)
-set(LD_LIBRARY_PATH ${CMAKE_INSTALL_PREFIX}/lib64 ${CMAKE_INSTALL_PREFIX}/lib)
+set(INSTALL_PREFIX $ENV{HOME}/opt)
 
 # Optional location for config.xml.in
 # -----------------------------------
