@@ -226,17 +226,18 @@ void rotate_90(unsigned char *buf, uint32_t len)
    or [0, 1, -3, 2, -4, -5, 7, -6] */
 {
 	uint32_t i;
-	unsigned char tmp;
+	uint8_t tmp;
+
 	for (i=0; i<len; i+=8) {
 		/* uint8_t negation = 255 - x */
-		tmp = 255 - buf[i+3];
+		tmp = (uint8_t)(255 - buf[i+3]);
 		buf[i+3] = buf[i+2];
 		buf[i+2] = tmp;
 
-		buf[i+4] = 255 - buf[i+4];
-		buf[i+5] = 255 - buf[i+5];
+		buf[i+4] = (uint8_t)(255 - buf[i+4]);
+		buf[i+5] = (uint8_t)(255 - buf[i+5]);
 
-		tmp = 255 - buf[i+6];
+		tmp = (uint8_t)(255 - buf[i+6]);
 		buf[i+6] = buf[i+7];
 		buf[i+7] = tmp;
 	}
@@ -254,8 +255,8 @@ void low_pass(struct demod_state *d)
 		if (d->prev_index < d->downsample) {
 			continue;
 		}
-		d->lowpassed[i2]   = d->now_r; // * d->output_scale;
-		d->lowpassed[i2+1] = d->now_j; // * d->output_scale;
+		d->lowpassed[i2]   = (int16_t)d->now_r; // * d->output_scale;
+		d->lowpassed[i2+1] = (int16_t)d->now_j; // * d->output_scale;
 		d->prev_index = 0;
 		d->now_r = 0;
 		d->now_j = 0;
@@ -314,7 +315,7 @@ void fifth_order(int16_t *data, int length, int16_t *hist)
 	e = hist[5];
 	f = data[0];
 	/* a downsample should improve resolution, so don't fully shift */
-	data[0] = (a + (b+e)*5 + (c+d)*10 + f) >> 4;
+	data[0] = (int16_t) ((a + (b+e)*5 + (c+d)*10 + f) >> 4);
 	for (i=4; i<length; i+=4) {
 		a = c;
 		b = d;
@@ -322,7 +323,7 @@ void fifth_order(int16_t *data, int length, int16_t *hist)
 		d = f;
 		e = data[i-2];
 		f = data[i];
-		data[i/2] = (a + (b+e)*5 + (c+d)*10 + f) >> 4;
+		data[i/2] = (int16_t) ((a + (b+e)*5 + (c+d)*10 + f) >> 4);
 	}
 	/* archive */
 	hist[0] = a;
@@ -336,7 +337,9 @@ void fifth_order(int16_t *data, int length, int16_t *hist)
 void generic_fir(int16_t *data, int length, int *fir, int16_t *hist)
 /* Okay, not at all generic.  Assumes length 9, fix that eventually. */
 {
-	int d, temp, sum;
+	int16_t temp;
+	int sum;
+	int d;
 	for (d=0; d<length; d+=2) {
 		temp = data[d];
 		sum = 0;
@@ -345,7 +348,7 @@ void generic_fir(int16_t *data, int length, int *fir, int16_t *hist)
 		sum += (hist[2] + hist[6]) * fir[3];
 		sum += (hist[3] + hist[5]) * fir[4];
 		sum +=            hist[4]  * fir[5];
-		data[d] = sum >> 15 ;
+		data[d] = (int16_t) (sum >> 15);
 		hist[0] = hist[1];
 		hist[1] = hist[2];
 		hist[2] = hist[3];
@@ -445,7 +448,8 @@ int polar_disc_lut(int ar, int aj, int br, int bj)
 
 	if (x_abs >= atan_lut_size) {
 		/* we can use linear range, but it is not necessary */
-		return (cj > 0) ? 1<<13 : -1<<13;
+		const int ret = 1<<13;
+		return (cj > 0) ? ret : -ret;
 	}
 
 	if (x > 0) {
@@ -497,7 +501,7 @@ void am_demod(struct demod_state *fm)
 		//r[i/2] = (int16_t)hypot(lp[i], lp[i+1]);
 		pcm = lp[i] * lp[i];
 		pcm += lp[i+1] * lp[i+1];
-		r[i/2] = (int16_t)sqrt(pcm) * fm->output_scale;
+		r[i/2] = (int16_t) ((int16_t)sqrt(pcm) * fm->output_scale);
 	}
 	fm->result_len = fm->lp_len/2;
 	// lowpass? (3khz)  highpass?  (dc)
@@ -510,7 +514,7 @@ void usb_demod(struct demod_state *fm)
 	int16_t *r  = fm->result;
 	for (i = 0; i < fm->lp_len; i += 2) {
 		pcm = lp[i] + lp[i+1];
-		r[i/2] = (int16_t)pcm * fm->output_scale;
+		r[i/2] = (int16_t)((int16_t)pcm * fm->output_scale);
 	}
 	fm->result_len = fm->lp_len/2;
 }
@@ -522,7 +526,7 @@ void lsb_demod(struct demod_state *fm)
 	int16_t *r  = fm->result;
 	for (i = 0; i < fm->lp_len; i += 2) {
 		pcm = lp[i] - lp[i+1];
-		r[i/2] = (int16_t)pcm * fm->output_scale;
+		r[i/2] = (int16_t)((int16_t)pcm * fm->output_scale);
 	}
 	fm->result_len = fm->lp_len/2;
 }
@@ -560,10 +564,10 @@ void dc_block_filter(struct demod_state *fm)
 	for (i=0; i < fm->result_len; i++) {
 		sum += fm->result[i];
 	}
-	avg = sum / fm->result_len;
+	avg = (int)(sum / fm->result_len);
 	avg = (avg + fm->dc_avg * 9) / 10;
 	for (i=0; i < fm->result_len; i++) {
-		fm->result[i] -= avg;
+		fm->result[i] = (int16_t)(fm->result[i] - avg);
 	}
 	fm->dc_avg = avg;
 }
@@ -589,7 +593,7 @@ int rms(int16_t *samples, int len, int step)
 /* largely lifted from rtl_power */
 {
 	int i;
-	long p, t, s;
+	double p, t, s;
 	double dc, err;
 
 	p = t = 0L;
@@ -641,7 +645,7 @@ void arbitrary_downsample(int16_t *buf1, int16_t *buf2, int len1, int len2)
 		frac = 1.0;
 		if ((tick + len2) > len1) {
 			frac = (double)(len1 - tick) / (double)len2;}
-		buf2[j] += (int16_t)((double)buf1[i] * frac + remainder);
+		buf2[j] = (int16_t)(buf2[j] + (double)buf1[i] * frac + remainder);
 		remainder = (double)buf1[i] * (1.0-frac);
 		tick += len2;
 		i++;
@@ -656,7 +660,8 @@ void arbitrary_downsample(int16_t *buf1, int16_t *buf2, int len1, int len2)
 		}
 	}
 	for (j=0; j<len2; j++) {
-		buf2[j] = buf2[j] * len2 / len1;}
+		buf2[j] = (int16_t) (buf2[j] * len2 / len1);
+	}
 }
 
 void arbitrary_resample(int16_t *buf1, int16_t *buf2, int len1, int len2)
@@ -739,7 +744,8 @@ static void rtlsdr_callback(unsigned char *buf, uint32_t len, void *ctx)
 	if (!s->offset_tuning) {
 		rotate_90(buf, len);}
 	for (i=0; i<(int)len; i++) {
-		s->buf16[i] = (int16_t)buf[i] - 127;}
+		s->buf16[i] = (int16_t)(buf[i] - 127);
+	}
 	pthread_rwlock_wrlock(&d->rw);
 	memcpy(d->lowpassed, s->buf16, 2*len);
 	d->lp_len = len;

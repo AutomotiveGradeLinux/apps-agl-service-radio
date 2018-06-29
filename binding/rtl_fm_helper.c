@@ -175,7 +175,8 @@ int main(int argc, char *argv[])
 
 	while(!done) {
 		LOG("Reading command\n");
-		fgets(line, sizeof(line), stdin);
+		if (fgets(line, sizeof(line), stdin) == NULL)
+			break;
 		if(line[0] == '\0' || line[0] == '\n')
 			continue;
 		if(strcmp(line, "START\n") == 0) {

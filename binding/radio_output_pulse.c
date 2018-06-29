@@ -32,7 +32,6 @@ static int16_t extra_buf[1];
 static unsigned char *output_buf;
 
 static void pa_context_state_cb(pa_context *c, void *data) {
-	pa_operation *o;
 
 	assert(c);
 	switch (pa_context_get_state(c)) {
@@ -220,10 +219,10 @@ void radio_output_close(void)
 	output_buf = NULL;
 }
 
-int radio_output_write(void *buf, int len)
+ssize_t radio_output_write(void *buf, int len)
 {
-	int rc = -EINVAL;
-	int error;
+	ssize_t rc = -EINVAL;
+
 	size_t n = len;
 	size_t avail;
 	int samples = len / 2;
@@ -284,7 +283,7 @@ int radio_output_write(void *buf, int len)
 	}
 
 	if ((rc = pa_stream_write(stream, p, n, NULL, 0, PA_SEEK_RELATIVE)) < 0) {
-		fprintf(stderr, "Error writing %d bytes to PulseAudio : %s\n",
+		fprintf(stderr, "Error writing %zu bytes to PulseAudio : %s\n",
 			n, pa_strerror(pa_context_errno(context)));
 	}
 exit:

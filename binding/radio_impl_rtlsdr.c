@@ -218,7 +218,7 @@ static void rtlsdr_set_frequency(uint32_t frequency)
 	char cmd[64];
 	char output[128];
 	bool found = false;
-	int rc;
+	ssize_t rc;
 	uint32_t n;
 
 	if(!present)
@@ -315,7 +315,7 @@ static void rtlsdr_start(void)
 		return;
 
 	if(!active) {
-		int rc;
+		ssize_t rc;
 		char cmd[64];
 
 		sprintf(cmd, "START\n");
@@ -334,7 +334,6 @@ static void rtlsdr_stop(void)
 		return;
 
 	if(active) {
-		int rc;
 		char cmd[64];
 
 		active = false;
@@ -349,7 +348,7 @@ static void rtlsdr_scan_start(radio_scan_direction_t direction,
 			      radio_scan_callback_t callback,
 			      void *data)
 {
-	int rc;
+	ssize_t rc;
 	char cmd[64];
 	char output[128];
 	bool found = false;

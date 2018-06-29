@@ -25,7 +25,7 @@ void radio_output_stop(void);
 
 void radio_output_close(void);
 
-int radio_output_write(void *buf, int len);
+ssize_t radio_output_write(void *buf, int len);
 
 #endif /* _RADIO_OUTPUT_H */
 

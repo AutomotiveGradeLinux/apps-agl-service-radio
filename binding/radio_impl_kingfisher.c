@@ -297,8 +297,6 @@ static uint32_t kf_get_frequency_step(radio_band_t band)
 
 static void kf_start(void)
 {
-	int rc;
-
 	if(!present)
 		return;
 

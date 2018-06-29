@@ -40,7 +40,7 @@ double atofs(char *s)
 /* standard suffixes */
 {
 	char last;
-	int len;
+	size_t len;
 	double suff = 1.0;
 	len = strlen(s);
 	last = s[len-1];
@@ -49,9 +49,11 @@ double atofs(char *s)
 		case 'g':
 		case 'G':
 			suff *= 1e3;
+			/*@fallthrough@*/
 		case 'm':
 		case 'M':
 			suff *= 1e3;
+			/*@fallthrough@*/
 		case 'k':
 		case 'K':
 			suff *= 1e3;
@@ -67,7 +69,7 @@ double atoft(char *s)
 /* time suffixes, returns seconds */
 {
 	char last;
-	int len;
+	size_t len;
 	double suff = 1.0;
 	len = strlen(s);
 	last = s[len-1];
@@ -76,9 +78,11 @@ double atoft(char *s)
 		case 'h':
 		case 'H':
 			suff *= 60;
+			/*@fallthrough@*/
 		case 'm':
 		case 'M':
 			suff *= 60;
+			/*@fallthrough@*/
 		case 's':
 		case 'S':
 			suff *= atof(s);
@@ -93,7 +97,7 @@ double atofp(char *s)
 /* percent suffixes */
 {
 	char last;
-	int len;
+	size_t len;
 	double suff = 1.0;
 	len = strlen(s);
 	last = s[len-1];
@@ -243,7 +247,8 @@ int verbose_reset_buffer(rtlsdr_dev_t *dev)
 
 int verbose_device_search(char *s)
 {
-	int i, device_count, device, offset;
+	int i, device_count, device;
+	ssize_t offset;
 	char *s2;
 	char vendor[256], product[256], serial[256];
 	device_count = rtlsdr_get_device_count();

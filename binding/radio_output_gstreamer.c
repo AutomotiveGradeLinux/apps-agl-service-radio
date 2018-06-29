@@ -160,9 +160,9 @@ void radio_output_close(void)
 	output_buf = NULL;
 }
 
-int radio_output_write(void *buf, int len)
+ssize_t radio_output_write(void *buf, int len)
 {
-	int rc = -EINVAL;
+	ssize_t rc = -EINVAL;
 	size_t n = len;
 	int samples = len / 2;
 	unsigned char *p;

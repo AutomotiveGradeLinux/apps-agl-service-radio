@@ -72,7 +72,7 @@ static void frequency(struct afb_req request)
 
 	if(value) {
 		char *p;
-		frequency = strtoul(value, &p, 10);
+		frequency = (uint32_t) strtoul(value, &p, 10);
 		if(frequency && *p == '\0') {
 			radio_impl_ops->set_frequency(frequency);
 		} else {
