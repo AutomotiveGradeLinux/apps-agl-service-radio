@@ -32,6 +32,9 @@
 #define HELPER_NAME	"rtl_fm_helper"
 #define HELPER_MAX	PATH_MAX + 64
 
+#define HELPER_CMD_MAXLEN	64
+#define HELPER_RSP_MAXLEN	128
+
 // Structure to describe FM band plans, all values in Hz.
 typedef struct {
 	char *name;
@@ -215,8 +218,8 @@ static uint32_t rtlsdr_get_frequency(void)
 
 static void rtlsdr_set_frequency(uint32_t frequency)
 {
-	char cmd[64];
-	char output[128];
+	char cmd[HELPER_CMD_MAXLEN];
+	char output[HELPER_RSP_MAXLEN];
 	bool found = false;
 	ssize_t rc;
 	uint32_t n;
@@ -232,7 +235,7 @@ static void rtlsdr_set_frequency(uint32_t frequency)
 		rtlsdr_scan_stop();
 
 	current_frequency = frequency;
-	sprintf(cmd, "F=%u\n", frequency);
+	snprintf(cmd, sizeof(cmd), "F=%u\n", frequency);
 	pthread_mutex_lock(&helper_mutex);
 	rc = write(helper_in, cmd, strlen(cmd));
 	if(rc < 0) {
@@ -240,11 +243,9 @@ static void rtlsdr_set_frequency(uint32_t frequency)
 		return;
 	}
 	while(!found) {
-		rc = read(helper_out, output, 128);
+		rc = read(helper_out, output, sizeof(output)-1);
 		if(rc <= 0)
 			break;
-		if(rc == 128)
-			rc = 127;
 		output[rc] = '\0';
 		if(output[0] == 'F') {
 			if(sscanf(output, "F=%u\n", &n) == 1) {
@@ -314,34 +315,43 @@ static void rtlsdr_start(void)
 	if(!present)
 		return;
 
-	if(!active) {
-		ssize_t rc;
-		char cmd[64];
+	if(active)
+		return;
 
-		sprintf(cmd, "START\n");
-		pthread_mutex_lock(&helper_mutex);
-		rc = write(helper_in, cmd, strlen(cmd));
-		pthread_mutex_unlock(&helper_mutex);
-		if(rc < 0)
-			return;
-		active = true;
+	ssize_t rc;
+	char cmd[HELPER_CMD_MAXLEN];
+
+	snprintf(cmd, sizeof(cmd), "START\n");
+	pthread_mutex_lock(&helper_mutex);
+	rc = write(helper_in, cmd, strlen(cmd));
+	pthread_mutex_unlock(&helper_mutex);
+	if (rc < 0) {
+		AFB_ERROR("Failed to ask \"%s\" to start", HELPER_NAME);
+		return;
 	}
+	active = true;
 }
 
 static void rtlsdr_stop(void)
 {
+	ssize_t rc;
 	if(!present)
 		return;
 
-	if(active) {
-		char cmd[64];
+	if (!active)
+		return;
 
-		active = false;
-		sprintf(cmd, "STOP\n");
-		pthread_mutex_lock(&helper_mutex);
-		write(helper_in, cmd, strlen(cmd));
-		pthread_mutex_unlock(&helper_mutex);
+	char cmd[HELPER_CMD_MAXLEN];
+
+	snprintf(cmd, sizeof(cmd), "STOP\n");
+	pthread_mutex_lock(&helper_mutex);
+	rc = write(helper_in, cmd, strlen(cmd));
+	pthread_mutex_unlock(&helper_mutex);
+	if (rc < 0) {
+		AFB_ERROR("Failed to ask \"%s\" to stop", HELPER_NAME);
+		return;
 	}
+	active = false;
 }
 
 static void rtlsdr_scan_start(radio_scan_direction_t direction,
@@ -349,8 +359,8 @@ static void rtlsdr_scan_start(radio_scan_direction_t direction,
 			      void *data)
 {
 	ssize_t rc;
-	char cmd[64];
-	char output[128];
+	char cmd[HELPER_CMD_MAXLEN];
+	char output[HELPER_RSP_MAXLEN];
 	bool found = false;
 	uint32_t n;
 
@@ -358,7 +368,9 @@ static void rtlsdr_scan_start(radio_scan_direction_t direction,
 		return;
 
 	scanning = true;
-	sprintf(cmd, "S=%s\n", direction == SCAN_FORWARD ? "UP" : "DOWN");
+	snprintf(cmd,
+			 sizeof(cmd),
+			 "S=%s\n", direction == SCAN_FORWARD ? "UP" : "DOWN");
 	pthread_mutex_lock(&helper_mutex);
 	if(!scanning) {
 		pthread_mutex_unlock(&helper_mutex);
@@ -374,12 +386,11 @@ static void rtlsdr_scan_start(radio_scan_direction_t direction,
 			pthread_mutex_unlock(&helper_mutex);
 			break;
 		}
-		rc = read(helper_out, output, 128);
+		rc = read(helper_out, output, sizeof(output)-1);
 		pthread_mutex_unlock(&helper_mutex);
 		if(rc <= 0)
 			break;
-		if(rc == 128)
-			rc = 127;
+
 		output[rc] = '\0';
 		if(output[0] == 'F') {
 			if(sscanf(output, "F=%u\n", &n) == 1) {
@@ -401,13 +412,16 @@ static void rtlsdr_scan_start(radio_scan_direction_t direction,
 
 static void rtlsdr_scan_stop(void)
 {
-	char cmd[64];
+	char cmd[HELPER_CMD_MAXLEN];
+	ssize_t rc;
 
-	sprintf(cmd, "S=STOP\n");
+	snprintf(cmd, sizeof(cmd), "S=STOP\n");
 	pthread_mutex_lock(&helper_mutex);
 	scanning = false;
-	write(helper_in, cmd, strlen(cmd));
+	rc = write(helper_in, cmd, strlen(cmd));
 	pthread_mutex_unlock(&helper_mutex);
+	if (rc < 0)
+		AFB_ERROR("Failed to ask \"%s\" to stop scan", HELPER_NAME);
 }
 
 static radio_stereo_mode_t rtlsdr_get_stereo_mode(void)
