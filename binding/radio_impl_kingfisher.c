@@ -23,7 +23,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <gst/gst.h>
-#define AFB_BINDING_VERSION 2
 #include <afb/afb-binding.h>
 
 #include "radio_impl.h"

@@ -21,6 +21,8 @@
 # Add target to project dependency list
 PROJECT_TARGET_ADD(radio-binding)
 
+	add_definitions(-DAFB_BINDING_VERSION=2)
+
 	# Define project Targets
 	set(radio_SOURCES
 		radio-binding.c
@@ -45,10 +47,6 @@ PROJECT_TARGET_ADD(radio-binding)
 	# Library dependencies (include updates automatically)
 	TARGET_COMPILE_OPTIONS(${TARGET_NAME} PUBLIC ${SOUND_CFLAGS})
 	TARGET_LINK_LIBRARIES(${TARGET_NAME} ${SOUND_LIBRARIES} ${link_libraries})
-
-	# installation directory
-	INSTALL(TARGETS ${TARGET_NAME}
-		LIBRARY DESTINATION ${BINDINGS_INSTALL_DIR})
 
 # Add helper program target
 PROJECT_TARGET_ADD(rtl_fm_helper)

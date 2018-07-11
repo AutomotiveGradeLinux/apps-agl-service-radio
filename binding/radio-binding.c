@@ -22,9 +22,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <sys/types.h>
-
 #include <json-c/json.h>
-#define AFB_BINDING_VERSION 2
 #include <afb/afb-binding.h>
 
 #include "radio_impl.h"
