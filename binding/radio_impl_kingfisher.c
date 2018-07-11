@@ -250,6 +250,43 @@ static void kf_set_frequency_callback(radio_freq_callback_t callback,
 	freq_callback_data = data;
 }
 
+static char * kf_get_rds_info(void) {
+	char cmd[SI_CTL_CMDLINE_MAXLEN];
+	char line[SI_CTL_OUTPUT_MAXLEN];
+	char * rds = NULL;
+	FILE *fp;
+
+	if (scanning)
+		goto done;
+
+	snprintf(cmd, SI_CTL_CMDLINE_MAXLEN, "%s /dev/i2c-12 0x65 -m", SI_CTL);
+	fp = popen(cmd, "r");
+	if(fp == NULL) {
+		fprintf(stderr, "Could not run: %s!\n", cmd);
+		goto done;
+	}
+	// Look for "Name:" in output
+	while (fgets(line, SI_CTL_OUTPUT_MAXLEN, fp) != NULL) {
+
+		char* nS = strstr(line, "Name:");
+		char * end;
+		if (!nS)
+			continue;
+
+		end = nS+strlen("Name:");
+		/* remove the trailing \n */
+		end[strlen(end)-1] = '\0';
+
+		rds = strdup(end);
+		break;
+	}
+
+	// Make sure si_ctl has finished
+	pclose(fp);
+done:
+	return rds;
+}
+
 static radio_band_t kf_get_band(void)
 {
 	return BAND_FM;
@@ -417,5 +454,6 @@ radio_impl_ops_t kf_impl_ops = {
 	.scan_start = kf_scan_start,
 	.scan_stop = kf_scan_stop,
 	.get_stereo_mode = kf_get_stereo_mode,
-	.set_stereo_mode = kf_set_stereo_mode
+	.set_stereo_mode = kf_set_stereo_mode,
+	.get_rds_info = kf_get_rds_info
 };

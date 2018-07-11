@@ -76,6 +76,8 @@ typedef struct {
 
 	void (*set_stereo_mode)(radio_stereo_mode_t mode);
 
+	char * (*get_rds_info)(void);
+
 } radio_impl_ops_t;
 
 #endif /* _RADIO_IMPL_H */

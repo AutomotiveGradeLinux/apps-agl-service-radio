@@ -23,11 +23,14 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <json-c/json.h>
+
 #include <afb/afb-binding.h>
 
 #include "radio_impl.h"
 #include "radio_impl_rtlsdr.h"
 #include "radio_impl_kingfisher.h"
+
+#define RADIO_MODE_NAME_MAXLEN 8
 
 static radio_impl_ops_t *radio_impl_ops;
 
@@ -81,6 +84,30 @@ static void frequency(struct afb_req request)
 	ret_json = json_object_new_object();
 	frequency = radio_impl_ops->get_frequency();
 	json_object_object_add(ret_json, "frequency", json_object_new_int((int32_t) frequency));
+	afb_req_success(request, ret_json, NULL);
+}
+
+/* @brief Get RDS information
+*
+* @param struct afb_req : an afb request structure
+*
+*/
+static void rds(struct afb_req request)
+{
+	json_object *ret_json;
+	char * rds;
+
+	if (radio_impl_ops->get_rds_info == NULL) {
+		afb_req_fail(request, "failed", "not supported");
+		return;
+	}
+
+	ret_json = json_object_new_object();
+
+	rds = radio_impl_ops->get_rds_info();
+	json_object_object_add(ret_json, "rds", json_object_new_string(rds?rds:""));
+	free(rds);
+
 	afb_req_success(request, ret_json, NULL);
 }
 
@@ -364,7 +391,7 @@ static void stereo_mode(struct afb_req request)
 	const char *value = afb_req_value(request, "value");
 	int valid = 0;
 	radio_stereo_mode_t mode;
-	char mode_name[4];
+	char mode_name[RADIO_MODE_NAME_MAXLEN];
 
 	if(value) {
 		if(!strcasecmp(value, "mono")) {
@@ -396,7 +423,7 @@ static void stereo_mode(struct afb_req request)
 	}
 	ret_json = json_object_new_object();
 	mode = radio_impl_ops->get_stereo_mode();
-	sprintf(mode_name, "%s", mode == MONO ? "mono" : "stereo");
+	snprintf(mode_name, RADIO_MODE_NAME_MAXLEN, "%s", mode == MONO ? "mono" : "stereo");
 	json_object_object_add(ret_json, "mode", json_object_new_string(mode_name));
 	afb_req_success(request, ret_json, NULL);
 }
@@ -448,6 +475,7 @@ static void unsubscribe(struct afb_req request)
 static const struct afb_verb_v2 verbs[]= {
 	{ .verb = "frequency",		.session = AFB_SESSION_NONE, .callback = frequency,		.info = "Get/Set frequency" },
 	{ .verb = "band",		.session = AFB_SESSION_NONE, .callback = band,			.info = "Get/Set band" },
+	{ .verb = "rds",		.session = AFB_SESSION_NONE, .callback = rds,			.info = "Get RDS information" },
 	{ .verb = "band_supported",	.session = AFB_SESSION_NONE, .callback = band_supported,	.info = "Check band support" },
 	{ .verb = "frequency_range",	.session = AFB_SESSION_NONE, .callback = frequency_range,	.info = "Get frequency range" },
 	{ .verb = "frequency_step",	.session = AFB_SESSION_NONE, .callback = frequency_step,	.info = "Get frequency step" },
