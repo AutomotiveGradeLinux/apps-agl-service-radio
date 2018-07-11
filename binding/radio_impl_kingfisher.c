@@ -22,7 +22,11 @@
 #include <glib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <json-c/json.h>
+#ifndef HAVE_4A_FRAMEWORK
 #include <gst/gst.h>
+#endif /* !HAVE_4A_FRAMEWORK */
+
 #include <afb/afb-binding.h>
 
 #include "radio_impl.h"
@@ -30,9 +34,15 @@
 #define SI_NODE	"/sys/firmware/devicetree/base/si468x@0/compatible"
 #define SI_INIT	"/usr/bin/si_init"
 #define SI_CTL	"/usr/bin/si_ctl"
+#define SI_CTL_CMDLINE_MAXLEN	128
+#define SI_CTL_OUTPUT_MAXLEN	128
 
-#define GST_SINK_OPT_LEN	128
-#define GST_PIPELINE_LEN	256
+#ifndef HAVE_4A_FRAMEWORK
+#define GST_SINK_OPT_LEN       128
+#define GST_PIPELINE_LEN       256
+// GStreamer state
+static GstElement *pipeline;
+#endif /* !HAVE_4A_FRAMEWORK */
 
 // Structure to describe FM band plans, all values in Hz.
 typedef struct {
@@ -57,8 +67,8 @@ static int scan_valid_snr_threshold = 128;
 static int scan_valid_rssi_threshold = 128;
 static bool scanning = false;
 
-// GStreamer state
-static GstElement *pipeline;
+// stream state
+
 static bool running;
 
 static void (*freq_callback)(uint32_t, void*);
@@ -73,10 +83,12 @@ static int kf_init(const char *output)
 	int conf_file_present = 0;
 	struct stat statbuf;
 	char *value_str;
-	char cmd[128];
+	char cmd[SI_CTL_CMDLINE_MAXLEN];
 	int rc;
+#ifndef HAVE_4A_FRAMEWORK
 	char output_sink_opt[GST_SINK_OPT_LEN];
 	char gst_pipeline_str[GST_PIPELINE_LEN];
+#endif /* !HAVE_4A_FRAMEWORK */
 
 	if(present)
 		return 0;
@@ -156,7 +168,8 @@ static int kf_init(const char *output)
 
 	AFB_INFO("Using FM Bandplan: %s", known_fm_band_plans[bandplan].name);
 	current_frequency = kf_get_min_frequency(BAND_FM);
-	sprintf(cmd,
+	snprintf(cmd,
+		sizeof(cmd),
 		"%s /dev/i2c-12 0x65 -b fm -p %s -t %d -u %d -c %d",
 		SI_CTL,
 		known_fm_band_plans[bandplan].name,
@@ -169,6 +182,7 @@ static int kf_init(const char *output)
 		return -1;
 	}
 
+#ifndef HAVE_4A_FRAMEWORK
 	// Initialize GStreamer
 	gst_init(NULL, NULL);
 
@@ -185,17 +199,11 @@ static int kf_init(const char *output)
 	// NOTE: If muting without pausing is desired, it can likely be done
 	//       by adding a "volume" element to the pipeline before the sink,
 	//       and setting the volume to 0 to mute.
-#ifdef HAVE_4A_FRAMEWORK
-	rc = snprintf(gst_pipeline_str,
-		      GST_PIPELINE_LEN,
-		      "alsasrc device=hw:radio ! queue ! audioconvert ! audioresample ! alsasink%s",
-		      output_sink_opt);
-#else
 	// Use PulseAudio output for compatibility with audiomanager / module_router
 	rc = snprintf(gst_pipeline_str,
-		      GST_PIPELINE_LEN,
-		      "alsasrc device=hw:radio ! queue ! audioconvert ! audioresample ! pulsesink stream-properties=\"props,media.role=radio\"");
-#endif
+	              sizeof(gst_pipeline_str),
+	              "alsasrc device=hw:radio ! queue ! audioconvert ! audioresample ! pulsesink stream-properties=\"props,media.role=radio\"");
+
 	if(rc >= GST_PIPELINE_LEN) {
 		AFB_ERROR("pipeline string too long");
 		return -1;
@@ -208,6 +216,7 @@ static int kf_init(const char *output)
 
 	// Start pipeline in paused state
 	gst_element_set_state(pipeline, GST_STATE_PAUSED);
+#endif /* !HAVE_4A_FRAMEWORK */
 
 	present = true;
 	return 0;
@@ -220,7 +229,7 @@ static uint32_t kf_get_frequency(void)
 
 static void kf_set_frequency(uint32_t frequency)
 {
-	char cmd[128];
+	char cmd[SI_CTL_CMDLINE_MAXLEN];
 	int rc;
 
 	if(!present)
@@ -234,7 +243,7 @@ static void kf_set_frequency(uint32_t frequency)
 		return;
 
 	kf_scan_stop();
-	sprintf(cmd, "%s /dev/i2c-12 0x65 -c %d", SI_CTL, frequency / 1000);
+	snprintf(cmd, sizeof(cmd), "%s /dev/i2c-12 0x65 -c %d", SI_CTL, frequency / 1000);
 	rc = system(cmd);
 	if(rc == 0)
 		current_frequency = frequency;
@@ -259,14 +268,14 @@ static char * kf_get_rds_info(void) {
 	if (scanning)
 		goto done;
 
-	snprintf(cmd, SI_CTL_CMDLINE_MAXLEN, "%s /dev/i2c-12 0x65 -m", SI_CTL);
+	snprintf(cmd, sizeof(cmd), "%s /dev/i2c-12 0x65 -m", SI_CTL);
 	fp = popen(cmd, "r");
 	if(fp == NULL) {
 		fprintf(stderr, "Could not run: %s!\n", cmd);
 		goto done;
 	}
-	// Look for "Name:" in output
-	while (fgets(line, SI_CTL_OUTPUT_MAXLEN, fp) != NULL) {
+	/* Look for "Name:" in output */
+	while (fgets(line, sizeof(line), fp) != NULL) {
 
 		char* nS = strstr(line, "Name:");
 		char * end;
@@ -274,15 +283,16 @@ static char * kf_get_rds_info(void) {
 			continue;
 
 		end = nS+strlen("Name:");
-		/* remove the trailing \n */
+		/* remove the trailing '\n' */
 		end[strlen(end)-1] = '\0';
 
 		rds = strdup(end);
 		break;
 	}
 
-	// Make sure si_ctl has finished
+	/* Make sure si_ctl has finished */
 	pclose(fp);
+
 done:
 	return rds;
 }
@@ -336,29 +346,64 @@ static void kf_start(void)
 	if(!present)
 		return;
 
-	if(!running) {
-		// Start pipeline
-		gst_element_set_state(pipeline, GST_STATE_PLAYING);
-		running = true;
+	if (running)
+		return;
+
+#ifdef HAVE_4A_FRAMEWORK
+	int rc;
+	json_object *response;
+
+	json_object *jsonData = json_object_new_object();
+	json_object_object_add(jsonData, "action", json_object_new_string("unmute"));
+	rc = afb_service_call_sync("ahl-4a", "radio", jsonData, &response);
+	if (rc == 0) {
+		AFB_INFO("Muted\n");
+		json_object_put(response);
 	}
+	else {
+		AFB_ERROR("afb_service_call_sync failed\n");
+	}
+#else /* !HAVE_4A_FRAMEWORK */
+	// Start pipeline
+    gst_element_set_state(pipeline, GST_STATE_PLAYING);
+#endif /* !HAVE_4A_FRAMEWORK */
+	running = true;
 }
 
 static void kf_stop(void)
 {
-	GstEvent *event;
+	if (!present)
+		return;
 
-	if(present && running) {
-		// Stop pipeline
-		running = false;
-		gst_element_set_state(pipeline, GST_STATE_PAUSED);
+	if (!running)
+		return;
 
-		// Flush pipeline
-		// This seems required to avoid stutters on starts after a stop
-		event = gst_event_new_flush_start();
-		gst_element_send_event(GST_ELEMENT(pipeline), event);
-		event = gst_event_new_flush_stop(TRUE);
-		gst_element_send_event(GST_ELEMENT(pipeline), event); 
+#ifdef HAVE_4A_FRAMEWORK
+	int rc;
+	json_object *response;
+
+	json_object *jsonData = json_object_new_object();
+	json_object_object_add(jsonData, "action", json_object_new_string("mute"));
+	rc = afb_service_call_sync("ahl-4a", "radio", jsonData, &response);
+	if (rc == 0) {
+		AFB_INFO("UnMuted\n");
+		json_object_put(response);
 	}
+	else {
+		AFB_ERROR("afb_service_call_sync failed\n");
+	}
+#else /* !HAVE_4A_FRAMEWORK */
+    gst_element_set_state(pipeline, GST_STATE_PAUSED);
+    GstEvent *event;
+
+    // Flush pipeline
+    // This seems required to avoid stutters on starts after a stop
+    event = gst_event_new_flush_start();
+    gst_element_send_event(GST_ELEMENT(pipeline), event);
+    event = gst_event_new_flush_stop(TRUE);
+    gst_element_send_event(GST_ELEMENT(pipeline), event);
+#endif /* !HAVE_4A_FRAMEWORK */
+	running = false;
 }
 
 static void kf_scan_start(radio_scan_direction_t direction,
@@ -366,8 +411,8 @@ static void kf_scan_start(radio_scan_direction_t direction,
 			  void *data)
 {
 	int rc;
-	char cmd[128];
-	char line[128];
+	char cmd[SI_CTL_CMDLINE_MAXLEN];
+	char line[SI_CTL_OUTPUT_MAXLEN];
 	uint32_t new_frequency = 0;
 	FILE *fp;
 
@@ -378,14 +423,17 @@ static void kf_scan_start(radio_scan_direction_t direction,
 		return;
 
 	scanning = true;
-	sprintf(cmd, "%s /dev/i2c-12 0x65 -l %s", SI_CTL, direction == SCAN_FORWARD ? "up" : "down");
+	snprintf(cmd,
+			 SI_CTL_CMDLINE_MAXLEN,
+			 "%s /dev/i2c-12 0x65 -l %s",
+			 SI_CTL, direction == SCAN_FORWARD ? "up" : "down");
 	fp = popen(cmd, "r");
 	if(fp == NULL) {
 		AFB_ERROR("Could not run: %s!", cmd);
 		return;
 	}
 	// Look for "Frequency:" in output
-	while(fgets(line, 128, fp) != NULL) {
+	while(fgets(line, SI_CTL_OUTPUT_MAXLEN, fp) != NULL) {
 		if(strncmp("Frequency:", line, 10) == 0) {
 			new_frequency = atoi(line + 10);
 			//AFB_DEBUG("%s: got new_frequency = %d", __FUNCTION__, new_frequency);

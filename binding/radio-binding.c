@@ -30,8 +30,6 @@
 #include "radio_impl_rtlsdr.h"
 #include "radio_impl_kingfisher.h"
 
-#define RADIO_MODE_NAME_MAXLEN 8
-
 static radio_impl_ops_t *radio_impl_ops;
 
 static struct afb_event freq_event;
@@ -103,7 +101,6 @@ static void rds(struct afb_req request)
 	}
 
 	ret_json = json_object_new_object();
-
 	rds = radio_impl_ops->get_rds_info();
 	json_object_object_add(ret_json, "rds", json_object_new_string(rds?rds:""));
 	free(rds);
@@ -391,7 +388,6 @@ static void stereo_mode(struct afb_req request)
 	const char *value = afb_req_value(request, "value");
 	int valid = 0;
 	radio_stereo_mode_t mode;
-	char mode_name[RADIO_MODE_NAME_MAXLEN];
 
 	if(value) {
 		if(!strcasecmp(value, "mono")) {
@@ -423,8 +419,8 @@ static void stereo_mode(struct afb_req request)
 	}
 	ret_json = json_object_new_object();
 	mode = radio_impl_ops->get_stereo_mode();
-	snprintf(mode_name, RADIO_MODE_NAME_MAXLEN, "%s", mode == MONO ? "mono" : "stereo");
-	json_object_object_add(ret_json, "mode", json_object_new_string(mode_name));
+
+	json_object_object_add(ret_json, "mode", json_object_new_string(mode == MONO ? "mono" : "stereo"));
 	afb_req_success(request, ret_json, NULL);
 }
 
@@ -495,32 +491,54 @@ static int init()
 	char *output = NULL;
 
 #ifdef HAVE_4A_FRAMEWORK
-	json_object *response;
-
+	json_object *response = NULL;
 	json_object *jsonData = json_object_new_object();
-	json_object_object_add(jsonData, "audio_role", json_object_new_string("Radio"));
-	json_object_object_add(jsonData, "endpoint_type", json_object_new_string("sink"));
-	rc = afb_service_call_sync("ahl-4a", "stream_open", jsonData, &response);
-	if(!rc) {
-		json_object *valJson = NULL;
-		json_object *val = NULL;
 
-		rc = json_object_object_get_ex(response, "response", &valJson);
-		if(rc) {
-			rc = json_object_object_get_ex(valJson, "device_uri", &val);
-			if(rc) {
-				const char *jres_pcm = json_object_get_string(val);
-				char *p;
-				if((p = strchr(jres_pcm, ':'))) {
-					output = strdup(p + 1);
-				}
-			}
-		}
-	} else {
-		AFB_ERROR("afb_service_call_sync failed\n");
-		return rc;
+	json_object_object_add(jsonData, "action", json_object_new_string("open"));
+	rc = afb_service_call_sync("ahl-4a", "get_roles", NULL, &response);
+	if (rc < 0) {
+		AFB_ERROR("Failed to query 4A about roles");
+		goto failed;
 	}
-#endif
+	AFB_NOTICE("4A: available roles are '%s'", json_object_get_string(response));
+	json_object_put(response);
+
+	rc = afb_service_call_sync("ahl-4a", "radio", jsonData, &response);
+	if (rc < 0) {
+		AFB_ERROR("Failed to query 'radio' role to 4A");
+		goto failed;
+	}
+
+	json_object *valJson = NULL;
+	json_object *val = NULL;
+
+	rc = json_object_object_get_ex(response, "response", &valJson);
+	if (rc == 0) {
+		AFB_ERROR("Reply from 4A is missing a 'response' field");
+		goto failed_malformed;
+	}
+
+	rc = json_object_object_get_ex(valJson, "device_uri", &val);
+	if (rc == 0) {
+		AFB_ERROR("Reply from 4A is missing a 'device_uri' field");
+		goto failed_malformed;
+	}
+
+	const char *jres_pcm = json_object_get_string(val);
+	char * p = strchr(jres_pcm, ':');
+
+	if (p == NULL) {
+		AFB_ERROR("Unable to parse 'device_uri' value field");
+		rc = -1;
+		goto failed_malformed;
+	}
+
+	if (asprintf(&output, "hw:%s", p + 1) < 0) {
+		AFB_ERROR("Insufficient memory");
+		rc = -1;
+		goto failed_malformed;
+	}
+#endif /* HAVE_4A_FRAMEWORK */
 
 	// Initialize event structures
 	freq_event = afb_daemon_make_event("frequency");
@@ -534,11 +552,23 @@ static int init()
 		radio_impl_ops = &kf_impl_ops;
 		rc = radio_impl_ops->init(output);
 	}
+	if (rc != 0) {
+		AFB_ERROR("No radio device found, exiting");
+		goto failed;
+	}
+
 	if(rc == 0) {
-		printf("%s found\n", radio_impl_ops->name);
+		AFB_NOTICE("%s found\n", radio_impl_ops->name);
 		radio_impl_ops->set_frequency_callback(freq_callback, NULL);
 	}
 	free(output);
+
+#ifdef HAVE_4A_FRAMEWORK
+failed_malformed:
+	json_object_put(response);
+#endif /* HAVE_4A_FRAMEWORK */
+
+failed:
 	return rc;
 }
 
