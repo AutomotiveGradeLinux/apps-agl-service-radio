@@ -44,7 +44,7 @@ set(PROJECT_APP_TEMPLATES_DIR "conf.d/app-templates")
 
 # Compilation Mode (DEBUG, RELEASE)
 # ----------------------------------
-set(BUILD_TYPE "DEBUG")
+set(BUILD_TYPE "RELEASE")
 
 # Kernel selection if needed. You can choose between a
 # mandatory version to impose a minimal version.
