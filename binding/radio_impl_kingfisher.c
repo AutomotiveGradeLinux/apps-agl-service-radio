@@ -77,7 +77,7 @@ static void *freq_callback_data;
 static uint32_t kf_get_min_frequency(radio_band_t band);
 static void kf_scan_stop(void);
 
-static int kf_init(const char *output)
+static int kf_init(void)
 {
 	GKeyFile* conf_file;
 	int conf_file_present = 0;
@@ -85,10 +85,6 @@ static int kf_init(const char *output)
 	char *value_str;
 	char cmd[SI_CTL_CMDLINE_MAXLEN];
 	int rc;
-#ifndef HAVE_4A_FRAMEWORK
-	char output_sink_opt[GST_SINK_OPT_LEN];
-	char gst_pipeline_str[GST_PIPELINE_LEN];
-#endif /* !HAVE_4A_FRAMEWORK */
 
 	if(present)
 		return 0;
@@ -182,44 +178,12 @@ static int kf_init(const char *output)
 		return -1;
 	}
 
-#ifndef HAVE_4A_FRAMEWORK
-	// Initialize GStreamer
-	gst_init(NULL, NULL);
-
-	if(output) {
-		AFB_INFO("Using output device %s", output);
-		rc = snprintf(output_sink_opt, GST_SINK_OPT_LEN, " device=%s", output);
-		if(rc >= GST_SINK_OPT_LEN) {
-			AFB_ERROR("output device string too long");
-			return -1;
-		}
-	} else {
-		output_sink_opt[0] = '\0';
-	}
-	// NOTE: If muting without pausing is desired, it can likely be done
-	//       by adding a "volume" element to the pipeline before the sink,
-	//       and setting the volume to 0 to mute.
-	// Use PulseAudio output for compatibility with audiomanager / module_router
-	rc = snprintf(gst_pipeline_str,
-	              sizeof(gst_pipeline_str),
-	              "alsasrc device=hw:radio ! queue ! audioconvert ! audioresample ! pulsesink stream-properties=\"props,media.role=radio\"");
-
-	if(rc >= GST_PIPELINE_LEN) {
-		AFB_ERROR("pipeline string too long");
-		return -1;
-	}
-	pipeline = gst_parse_launch(gst_pipeline_str, NULL);
-	if(!pipeline) {
-		AFB_ERROR("pipeline construction failed!");
-		return -1;
-	}
-
-	// Start pipeline in paused state
-	gst_element_set_state(pipeline, GST_STATE_PAUSED);
-#endif /* !HAVE_4A_FRAMEWORK */
-
 	present = true;
 	return 0;
+}
+
+static void kf_set_output(const char *output)
+{
 }
 
 static uint32_t kf_get_frequency(void)
@@ -488,6 +452,7 @@ static void kf_set_stereo_mode(radio_stereo_mode_t mode)
 radio_impl_ops_t kf_impl_ops = {
 	.name = "Kingfisher Si4689",
 	.init = kf_init,
+	.set_output = kf_set_output,
 	.get_frequency = kf_get_frequency,
 	.set_frequency = kf_set_frequency,
 	.set_frequency_callback = kf_set_frequency_callback,

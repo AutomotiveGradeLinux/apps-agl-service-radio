@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <json-c/json.h>
@@ -51,6 +52,67 @@ static void scan_callback(uint32_t frequency, void *data)
 
 	json_object_object_add(jresp, "value", value);
 	afb_event_push(scan_event, json_object_get(jresp));
+}
+
+static int set_role_state(bool state, char **output)
+{
+	int rc;
+	json_object *response = NULL;
+	json_object *jsonData = json_object_new_object();
+
+	json_object_object_add(jsonData, "action", json_object_new_string(state ? "open" : "close"));
+	rc = afb_service_call_sync("ahl-4a", "radio", jsonData, &response);
+	if (rc < 0) {
+		AFB_ERROR("Failed to %s 4A 'radio' role", state ? "open" : "close");
+		goto failed;
+	}
+
+	if(!state) {
+		// No need to look at the response on close
+		goto done;
+	}
+
+	// Handle response on open
+	json_object *valJson = NULL;
+	json_object *val = NULL;
+	rc = json_object_object_get_ex(response, "response", &valJson);
+	if (rc == 0) {
+		AFB_ERROR("Reply from 4A is missing a 'response' field");
+		rc = -1;
+		goto failed_malformed;
+	}
+
+	rc = json_object_object_get_ex(valJson, "device_uri", &val);
+	if (rc == 0) {
+		AFB_ERROR("Reply from 4A is missing a 'device_uri' field");
+		rc = -1;
+		goto failed_malformed;
+	}
+
+	const char *jres_pcm = json_object_get_string(val);
+	char * p = strchr(jres_pcm, ':');
+
+	if (p == NULL) {
+		AFB_ERROR("Unable to parse 'device_uri' value field");
+		rc = -1;
+		goto failed_malformed;
+	}
+
+	if (output) {
+		if (asprintf(output, "hw:%s", p + 1) < 0) {
+			AFB_ERROR("Insufficient memory");
+			rc = -1;
+			goto failed_malformed;
+		}
+	}
+done:
+	rc = 0;
+
+failed_malformed:
+	json_object_put(response);
+
+failed:
+	return rc;
 }
 
 /*
@@ -306,7 +368,13 @@ static void frequency_step(struct afb_req request)
  */
 static void start(struct afb_req request)
 {
-	radio_impl_ops->start();
+	char *output = NULL;
+
+	if(set_role_state(true, &output) == 0) {
+		radio_impl_ops->set_output(output);
+		radio_impl_ops->start();
+		free(output);
+	}
 	afb_req_success(request, NULL, NULL);
 }
 
@@ -319,6 +387,7 @@ static void start(struct afb_req request)
 static void stop(struct afb_req request)
 {
 	radio_impl_ops->stop();
+	set_role_state(false, NULL);
 	afb_req_success(request, NULL, NULL);
 }
 
@@ -487,89 +556,29 @@ static const struct afb_verb_v2 verbs[]= {
 
 static int init()
 {
-	int rc;
-	char *output = NULL;
-
-#ifdef HAVE_4A_FRAMEWORK
-	json_object *response = NULL;
-	json_object *jsonData = json_object_new_object();
-
-	json_object_object_add(jsonData, "action", json_object_new_string("open"));
-	rc = afb_service_call_sync("ahl-4a", "get_roles", NULL, &response);
-	if (rc < 0) {
-		AFB_ERROR("Failed to query 4A about roles");
-		goto failed;
+	// Look for RTL-SDR USB adapter
+	radio_impl_ops = &rtlsdr_impl_ops;
+	int rc = radio_impl_ops->init();
+	if(rc != 0) {
+		// Look for Kingfisher Si4689
+		radio_impl_ops = &kf_impl_ops;
+		rc = radio_impl_ops->init();
 	}
-	AFB_NOTICE("4A: available roles are '%s'", json_object_get_string(response));
-	json_object_put(response);
-
-	rc = afb_service_call_sync("ahl-4a", "radio", jsonData, &response);
-	if (rc < 0) {
-		AFB_ERROR("Failed to query 'radio' role to 4A");
-		goto failed;
+	if (rc != 0) {
+		AFB_ERROR("No radio device found, exiting");
 	}
-
-	json_object *valJson = NULL;
-	json_object *val = NULL;
-
-	rc = json_object_object_get_ex(response, "response", &valJson);
-	if (rc == 0) {
-		AFB_ERROR("Reply from 4A is missing a 'response' field");
-		goto failed_malformed;
+	if(rc == 0) {
+		AFB_NOTICE("%s found\n", radio_impl_ops->name);
+		radio_impl_ops->set_frequency_callback(freq_callback, NULL);
+	} else {
+		return rc;
 	}
-
-	rc = json_object_object_get_ex(valJson, "device_uri", &val);
-	if (rc == 0) {
-		AFB_ERROR("Reply from 4A is missing a 'device_uri' field");
-		goto failed_malformed;
-	}
-
-	const char *jres_pcm = json_object_get_string(val);
-	char * p = strchr(jres_pcm, ':');
-
-	if (p == NULL) {
-		AFB_ERROR("Unable to parse 'device_uri' value field");
-		rc = -1;
-		goto failed_malformed;
-	}
-
-	if (asprintf(&output, "hw:%s", p + 1) < 0) {
-		AFB_ERROR("Insufficient memory");
-		rc = -1;
-		goto failed_malformed;
-	}
-#endif /* HAVE_4A_FRAMEWORK */
 
 	// Initialize event structures
 	freq_event = afb_daemon_make_event("frequency");
 	scan_event = afb_daemon_make_event("station_found");
 
-	// Look for RTL-SDR USB adapter
-	radio_impl_ops = &rtlsdr_impl_ops;
-	rc = radio_impl_ops->init(output);
-	if(rc != 0) {
-		// Look for Kingfisher Si4689
-		radio_impl_ops = &kf_impl_ops;
-		rc = radio_impl_ops->init(output);
-	}
-	if (rc != 0) {
-		AFB_ERROR("No radio device found, exiting");
-		goto failed;
-	}
-
-	if(rc == 0) {
-		AFB_NOTICE("%s found\n", radio_impl_ops->name);
-		radio_impl_ops->set_frequency_callback(freq_callback, NULL);
-	}
-	free(output);
-
-#ifdef HAVE_4A_FRAMEWORK
-failed_malformed:
-	json_object_put(response);
-#endif /* HAVE_4A_FRAMEWORK */
-
-failed:
-	return rc;
+	return 0;
 }
 
 const struct afb_binding_v2 afbBindingV2 = {
