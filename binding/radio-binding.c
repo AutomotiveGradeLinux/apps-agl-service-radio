@@ -35,6 +35,7 @@ static radio_impl_ops_t *radio_impl_ops;
 
 static struct afb_event freq_event;
 static struct afb_event scan_event;
+static struct afb_event status_event;
 
 static void freq_callback(uint32_t frequency, void *data)
 {
@@ -376,6 +377,11 @@ static void start(struct afb_req request)
 		free(output);
 	}
 	afb_req_success(request, NULL, NULL);
+
+	json_object *jresp = json_object_new_object();
+	json_object *value = json_object_new_string("playing");
+	json_object_object_add(jresp, "value", value);
+	afb_event_push(status_event, json_object_get(jresp));
 }
 
 /*
@@ -389,6 +395,11 @@ static void stop(struct afb_req request)
 	radio_impl_ops->stop();
 	set_role_state(false, NULL);
 	afb_req_success(request, NULL, NULL);
+
+	json_object *jresp = json_object_new_object();
+	json_object *value = json_object_new_string("stopped");
+	json_object_object_add(jresp, "value", value);
+	afb_event_push(status_event, json_object_get(jresp));
 }
 
 /*
@@ -507,6 +518,8 @@ static void subscribe(struct afb_req request)
 			afb_req_subscribe(request, freq_event);
 		} else if(!strcasecmp(value, "station_found")) {
 			afb_req_subscribe(request, scan_event);
+		} else if(!strcasecmp(value, "status")) {
+			afb_req_subscribe(request, status_event);
 		} else {
 			afb_req_fail(request, "failed", "Invalid event");
 			return;
@@ -529,6 +542,8 @@ static void unsubscribe(struct afb_req request)
 			afb_req_unsubscribe(request, freq_event);
 		} else if(!strcasecmp(value, "station_found")) {
 			afb_req_unsubscribe(request, scan_event);
+		} else if(!strcasecmp(value, "status")) {
+			afb_req_unsubscribe(request, status_event);
 		} else {
 			afb_req_fail(request, "failed", "Invalid event");
 			return;
@@ -577,6 +592,7 @@ static int init()
 	// Initialize event structures
 	freq_event = afb_daemon_make_event("frequency");
 	scan_event = afb_daemon_make_event("station_found");
+	status_event = afb_daemon_make_event("status");
 
 	return 0;
 }

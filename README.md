@@ -32,6 +32,10 @@ JSON response has a single field **frequency** which is the currently tuned freq
 
 JSON response has a single field **value** of the frequency of the discovered radio station.
 
+### status Event JSON Response
+
+JSON response has a single field **value** with one of the values "playing" or "stopped".
+
 # AGL Radio Tuner Binding
 
 ## FM Band Plan Selection
