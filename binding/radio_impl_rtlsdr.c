@@ -51,6 +51,7 @@ static fm_band_plan_t known_fm_band_plans[5] = {
 };
 
 static unsigned int bandplan;
+static char *helper_output;
 static pid_t helper_pid;
 static int helper_in;
 static int helper_out;
@@ -127,7 +128,7 @@ static pid_t popen2(char *command, int *in_fd, int *out_fd)
 	return pid;
 }
 
-static int rtlsdr_init(const char *output)
+static int rtlsdr_init(void)
 {
 	GKeyFile *conf_file;
 	char *value_str;
@@ -185,29 +186,18 @@ static int rtlsdr_init(const char *output)
 		return -1;
 	}
 
-	if(output) {
-		// Indicate desired output to helper
-		AFB_INFO("Setting RADIO_OUTPUT=%s", output);
-		setenv("RADIO_OUTPUT", output, 1);
-	}
-
-	// Run helper
-	if(snprintf(helper_path, PATH_MAX, "%s/bin/%s", rootdir, HELPER_NAME) == PATH_MAX) {
-		AFB_ERROR("Could not create path to %s", HELPER_NAME);
-		return -EINVAL;
-	}
-	helper_pid = popen2(helper_path, &helper_out, &helper_in);
-	if(helper_pid < 0) {
-		AFB_ERROR("Could not run %s!", HELPER_NAME);
-		return -1;
-	}
-	AFB_DEBUG("%s started", HELPER_NAME);
-	free(helper_path);
-
 	present = true;
 	rtlsdr_set_frequency(current_frequency);
 
 	return 0;
+}
+
+static void rtlsdr_set_output(const char *output)
+{
+	// Save output for later use
+	if(helper_output)
+		free(helper_output);
+	helper_output = strdup(output);
 }
 
 static uint32_t rtlsdr_get_frequency(void)
@@ -309,12 +299,57 @@ static uint32_t rtlsdr_get_frequency_step(radio_band_t band)
 	return ret;
 }
 
+static int rtlsdr_start_helper(void)
+{
+	char *rootdir;
+	char *helper_path;
+	static bool helper_started = false;
+
+	if(!present)
+		return -1;
+
+	if(helper_started)
+		return 0;
+
+	rootdir = getenv("AFM_APP_INSTALL_DIR");
+	if(!rootdir)
+		return -1;
+
+	if(helper_output) {
+		// Indicate desired output to helper
+		AFB_INFO("Setting RADIO_OUTPUT=%s", helper_output);
+		setenv("RADIO_OUTPUT", helper_output, 1);
+	}
+
+	// Run helper
+	helper_path = malloc(HELPER_MAX);
+	if(!helper_path)
+		return -ENOMEM;
+	if(snprintf(helper_path, PATH_MAX, "%s/bin/%s", rootdir, HELPER_NAME) == PATH_MAX) {
+		AFB_ERROR("Could not create path to %s", HELPER_NAME);
+		return -EINVAL;
+	}
+	helper_pid = popen2(helper_path, &helper_out, &helper_in);
+	if(helper_pid < 0) {
+		AFB_ERROR("Could not run %s!", HELPER_NAME);
+		return -1;
+	}
+	AFB_DEBUG("%s started", HELPER_NAME);
+	helper_started = true;
+	free(helper_path);
+
+	return 0;
+}
+
 static void rtlsdr_start(void)
 {
 	if(!present)
 		return;
 
 	if(active)
+		return;
+
+	if(rtlsdr_start_helper() < 0)
 		return;
 
 	ssize_t rc;
@@ -437,6 +472,7 @@ static void rtlsdr_set_stereo_mode(radio_stereo_mode_t mode)
 radio_impl_ops_t rtlsdr_impl_ops = {
 	.name = "RTL-SDR USB adapter",
 	.init = rtlsdr_init,
+	.set_output = rtlsdr_set_output,
 	.get_frequency = rtlsdr_get_frequency,
 	.set_frequency = rtlsdr_set_frequency,
 	.set_frequency_callback = rtlsdr_set_frequency_callback,

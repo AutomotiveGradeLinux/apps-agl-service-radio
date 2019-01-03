@@ -41,7 +41,9 @@ typedef enum {
 typedef struct {
 	char *name;
 
-	int (*init)(const char *output);
+	int (*init)(void);
+
+	void (*set_output)(const char *output);
 
 	uint32_t (*get_frequency)(void);
 
