@@ -195,9 +195,8 @@ static int rtlsdr_init(void)
 static void rtlsdr_set_output(const char *output)
 {
 	// Save output for later use
-	if(helper_output)
-		free(helper_output);
-	helper_output = strdup(output);
+	free(helper_output);
+	helper_output = output ? strdup(output) : NULL;
 }
 
 static uint32_t rtlsdr_get_frequency(void)
