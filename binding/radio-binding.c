@@ -57,6 +57,7 @@ static void scan_callback(uint32_t frequency, void *data)
 
 static int set_role_state(bool state, char **output)
 {
+#ifdef HAVE_4A_FRAMEWORK
 	int rc;
 	json_object *response = NULL;
 	json_object *jsonData = json_object_new_object();
@@ -114,6 +115,9 @@ failed_malformed:
 
 failed:
 	return rc;
+#else
+	return 0;
+#endif
 }
 
 /*

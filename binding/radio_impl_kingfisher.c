@@ -23,9 +23,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <json-c/json.h>
-#ifndef HAVE_4A_FRAMEWORK
-#include <gst/gst.h>
-#endif /* !HAVE_4A_FRAMEWORK */
 
 #include <afb/afb-binding.h>
 
@@ -36,13 +33,6 @@
 #define SI_CTL	"/usr/bin/si_ctl"
 #define SI_CTL_CMDLINE_MAXLEN	128
 #define SI_CTL_OUTPUT_MAXLEN	128
-
-#ifndef HAVE_4A_FRAMEWORK
-#define GST_SINK_OPT_LEN       128
-#define GST_PIPELINE_LEN       256
-// GStreamer state
-static GstElement *pipeline;
-#endif /* !HAVE_4A_FRAMEWORK */
 
 // Structure to describe FM band plans, all values in Hz.
 typedef struct {
@@ -85,6 +75,11 @@ static int kf_init(void)
 	char *value_str;
 	char cmd[SI_CTL_CMDLINE_MAXLEN];
 	int rc;
+
+#ifndef HAVE_4A_FRAMEWORK
+	/* this code will only work with 4A */
+	return -1;
+#endif
 
 	if(present)
 		return 0;
@@ -327,10 +322,7 @@ static void kf_start(void)
 	else {
 		AFB_ERROR("afb_service_call_sync failed\n");
 	}
-#else /* !HAVE_4A_FRAMEWORK */
-	// Start pipeline
-    gst_element_set_state(pipeline, GST_STATE_PLAYING);
-#endif /* !HAVE_4A_FRAMEWORK */
+#endif /* HAVE_4A_FRAMEWORK */
 	running = true;
 }
 
@@ -356,17 +348,7 @@ static void kf_stop(void)
 	else {
 		AFB_ERROR("afb_service_call_sync failed\n");
 	}
-#else /* !HAVE_4A_FRAMEWORK */
-    gst_element_set_state(pipeline, GST_STATE_PAUSED);
-    GstEvent *event;
-
-    // Flush pipeline
-    // This seems required to avoid stutters on starts after a stop
-    event = gst_event_new_flush_start();
-    gst_element_send_event(GST_ELEMENT(pipeline), event);
-    event = gst_event_new_flush_stop(TRUE);
-    gst_element_send_event(GST_ELEMENT(pipeline), event);
-#endif /* !HAVE_4A_FRAMEWORK */
+#endif /* HAVE_4A_FRAMEWORK */
 	running = false;
 }
 
