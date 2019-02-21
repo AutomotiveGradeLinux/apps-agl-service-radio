@@ -51,7 +51,7 @@ static fm_band_plan_t known_fm_band_plans[5] = {
 };
 
 static unsigned int bandplan = 0;
-static bool present;
+static bool present = false;
 static uint32_t current_frequency;
 static int scan_valid_snr_threshold = 128;
 static int scan_valid_rssi_threshold = 128;
