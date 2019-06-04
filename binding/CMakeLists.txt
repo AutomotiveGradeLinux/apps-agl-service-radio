@@ -56,7 +56,7 @@ PROJECT_TARGET_ADD(rtl_fm_helper)
 		${TARGET_NAME}.c
 		rtl_fm.c
 		convenience/convenience.c)
-	if(HAVE_4A_FRAMEWORK)
+	if(HAVE_4A_FRAMEWORK OR HAVE_PIPEWIRE)
 		set(helper_SOURCES ${helper_SOURCES} radio_output_gstreamer.c)
 		PKG_CHECK_MODULES(helper_SOUND REQUIRED gstreamer-1.0)
 	else()
