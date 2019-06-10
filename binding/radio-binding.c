@@ -55,71 +55,6 @@ static void scan_callback(uint32_t frequency, void *data)
 	afb_event_push(scan_event, json_object_get(jresp));
 }
 
-static int set_role_state(bool state, char **output)
-{
-#ifdef HAVE_4A_FRAMEWORK
-	int rc;
-	json_object *response = NULL;
-	json_object *jsonData = json_object_new_object();
-
-	json_object_object_add(jsonData, "action", json_object_new_string(state ? "open" : "close"));
-	rc = afb_service_call_sync("ahl-4a", "radio", jsonData, &response);
-	if (rc < 0) {
-		AFB_ERROR("Failed to %s 4A 'radio' role", state ? "open" : "close");
-		goto failed;
-	}
-
-	if(!state) {
-		// No need to look at the response on close
-		goto done;
-	}
-
-	// Handle response on open
-	json_object *valJson = NULL;
-	json_object *val = NULL;
-	rc = json_object_object_get_ex(response, "response", &valJson);
-	if (rc == 0) {
-		AFB_ERROR("Reply from 4A is missing a 'response' field");
-		rc = -1;
-		goto failed_malformed;
-	}
-
-	rc = json_object_object_get_ex(valJson, "device_uri", &val);
-	if (rc == 0) {
-		AFB_ERROR("Reply from 4A is missing a 'device_uri' field");
-		rc = -1;
-		goto failed_malformed;
-	}
-
-	const char *jres_pcm = json_object_get_string(val);
-	char * p = strchr(jres_pcm, ':');
-
-	if (p == NULL) {
-		AFB_ERROR("Unable to parse 'device_uri' value field");
-		rc = -1;
-		goto failed_malformed;
-	}
-
-	if (output) {
-		if (asprintf(output, "hw:%s", p + 1) < 0) {
-			AFB_ERROR("Insufficient memory");
-			rc = -1;
-			goto failed_malformed;
-		}
-	}
-done:
-	rc = 0;
-
-failed_malformed:
-	json_object_put(response);
-
-failed:
-	return rc;
-#else
-	return 0;
-#endif
-}
-
 /*
  * Binding verb handlers
  */
@@ -373,13 +308,8 @@ static void frequency_step(struct afb_req request)
  */
 static void start(struct afb_req request)
 {
-	char *output = NULL;
-
-	if(set_role_state(true, &output) == 0) {
-		radio_impl_ops->set_output(output);
-		radio_impl_ops->start();
-		free(output);
-	}
+	radio_impl_ops->set_output(NULL);
+	radio_impl_ops->start();
 	afb_req_success(request, NULL, NULL);
 
 	json_object *jresp = json_object_new_object();
@@ -397,7 +327,6 @@ static void start(struct afb_req request)
 static void stop(struct afb_req request)
 {
 	radio_impl_ops->stop();
-	set_role_state(false, NULL);
 	afb_req_success(request, NULL, NULL);
 
 	json_object *jresp = json_object_new_object();

@@ -28,9 +28,6 @@ PROJECT_TARGET_ADD(radio-binding)
 		radio-binding.c
 		radio_impl_kingfisher.c
 		radio_impl_rtlsdr.c)
-	if(HAVE_4A_FRAMEWORK)
-		add_definitions(-DHAVE_4A_FRAMEWORK)
-	endif()
 
 	PKG_CHECK_MODULES(SOUND REQUIRED gstreamer-1.0)
 
@@ -54,16 +51,11 @@ PROJECT_TARGET_ADD(rtl_fm_helper)
 	# Define project targets
 	set(helper_SOURCES
 		${TARGET_NAME}.c
+		radio_output_gstreamer.c
 		rtl_fm.c
 		convenience/convenience.c)
-	if(HAVE_4A_FRAMEWORK OR HAVE_PIPEWIRE)
-		set(helper_SOURCES ${helper_SOURCES} radio_output_gstreamer.c)
-		PKG_CHECK_MODULES(helper_SOUND REQUIRED gstreamer-1.0)
-	else()
-		set(helper_SOURCES ${helper_SOURCES} radio_output_pulse.c)
-		PKG_CHECK_MODULES(helper_SOUND REQUIRED libpulse-simple)
-	endif()
 
+	PKG_CHECK_MODULES(helper_SOUND REQUIRED gstreamer-1.0)
 	PKG_CHECK_MODULES(helper_RTLSDR REQUIRED librtlsdr)
 	PKG_CHECK_MODULES(helper_LIBUSB REQUIRED libusb-1.0)
 

@@ -76,11 +76,6 @@ static int kf_init(void)
 	char cmd[SI_CTL_CMDLINE_MAXLEN];
 	int rc;
 
-#ifndef HAVE_4A_FRAMEWORK
-	/* this code will only work with 4A */
-	return -1;
-#endif
-
 	if(present)
 		return 0;
 
@@ -308,21 +303,8 @@ static void kf_start(void)
 	if (running)
 		return;
 
-#ifdef HAVE_4A_FRAMEWORK
-	int rc;
-	json_object *response;
+	/* TODO: start the stream in pipewire */
 
-	json_object *jsonData = json_object_new_object();
-	json_object_object_add(jsonData, "action", json_object_new_string("unmute"));
-	rc = afb_service_call_sync("ahl-4a", "radio", jsonData, &response);
-	if (rc == 0) {
-		AFB_INFO("Muted\n");
-		json_object_put(response);
-	}
-	else {
-		AFB_ERROR("afb_service_call_sync failed\n");
-	}
-#endif /* HAVE_4A_FRAMEWORK */
 	running = true;
 }
 
@@ -334,21 +316,8 @@ static void kf_stop(void)
 	if (!running)
 		return;
 
-#ifdef HAVE_4A_FRAMEWORK
-	int rc;
-	json_object *response;
+	/* TODO: stop the stream in pipewire */
 
-	json_object *jsonData = json_object_new_object();
-	json_object_object_add(jsonData, "action", json_object_new_string("mute"));
-	rc = afb_service_call_sync("ahl-4a", "radio", jsonData, &response);
-	if (rc == 0) {
-		AFB_INFO("UnMuted\n");
-		json_object_put(response);
-	}
-	else {
-		AFB_ERROR("afb_service_call_sync failed\n");
-	}
-#endif /* HAVE_4A_FRAMEWORK */
 	running = false;
 }
 
