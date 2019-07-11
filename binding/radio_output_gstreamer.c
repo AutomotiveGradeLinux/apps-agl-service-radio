@@ -61,7 +61,7 @@ int radio_output_open()
 	queue = gst_element_factory_make("queue", "queue");
 	convert = gst_element_factory_make("audioconvert", "convert");
 	resample = gst_element_factory_make("audioresample", "resample");
-	sink = gst_element_factory_make("alsasink", "sink");
+	sink = gst_element_factory_make("pwaudiosink", "sink");
 	if(!(pipeline && appsrc && queue && convert && resample && sink)) {
 		fprintf(stderr, "pipeline element construction failed!\n");
 	}
@@ -73,6 +73,7 @@ int radio_output_open()
 					 "layout", G_TYPE_STRING, "interleaved",
 					 "channel-mask", G_TYPE_UINT64, 3,
 					 NULL), NULL);
+	gst_util_set_object_arg(sink, "stream-properties", "p,media.role=Multimedia");
 
 	if((p = getenv("RADIO_OUTPUT"))) {
 		fprintf(stderr, "Using output device %s\n", p);
