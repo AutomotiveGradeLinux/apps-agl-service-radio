@@ -23,16 +23,18 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <json-c/json.h>
+#include <gst/gst.h>
 
 #include <afb/afb-binding.h>
 
 #include "radio_impl.h"
 
 #define SI_NODE	"/sys/firmware/devicetree/base/si468x@0/compatible"
-#define SI_INIT	"/usr/bin/si_init"
 #define SI_CTL	"/usr/bin/si_ctl"
 #define SI_CTL_CMDLINE_MAXLEN	128
 #define SI_CTL_OUTPUT_MAXLEN	128
+
+#define GST_PIPELINE_LEN	256
 
 // Structure to describe FM band plans, all values in Hz.
 typedef struct {
@@ -58,7 +60,7 @@ static int scan_valid_rssi_threshold = 128;
 static bool scanning = false;
 
 // stream state
-
+static GstElement *pipeline;
 static bool running;
 
 static void (*freq_callback)(uint32_t, void*);
@@ -75,6 +77,7 @@ static int kf_init(void)
 	char *value_str;
 	char cmd[SI_CTL_CMDLINE_MAXLEN];
 	int rc;
+	char gst_pipeline_str[GST_PIPELINE_LEN];
 
 	if(present)
 		return 0;
@@ -83,9 +86,7 @@ static int kf_init(void)
 	if(stat(SI_NODE, &statbuf) != 0)
 		return -1;
 
-	// Check for Cogent's si_init script and si_ctl utility
-	if(stat(SI_INIT, &statbuf) != 0)
-		return -1;
+	// Check for Cogent's si_ctl utility
 	if(stat(SI_CTL, &statbuf) != 0)
 		return -1;
 
@@ -146,12 +147,6 @@ static int kf_init(void)
 		g_key_file_free(conf_file);
 	}
 
-	rc = system(SI_INIT);
-	if(rc != 0) {
-		AFB_ERROR("si_init failed, rc = %d", rc);
-		return -1;
-	}
-
 	AFB_INFO("Using FM Bandplan: %s", known_fm_band_plans[bandplan].name);
 	current_frequency = kf_get_min_frequency(BAND_FM);
 	snprintf(cmd,
@@ -167,6 +162,26 @@ static int kf_init(void)
 		AFB_ERROR("%s failed, rc = %d", SI_CTL, rc);
 		return -1;
 	}
+
+	// Initialize GStreamer
+	gst_init(NULL, NULL);
+
+	// Use PipeWire output
+	rc = snprintf(gst_pipeline_str,
+		      GST_PIPELINE_LEN,
+		      "alsasrc device=hw:radio ! queue ! audioconvert ! audioresample ! pwaudiosink stream-properties=\"p,media.role=Multimedia\"");
+	if(rc >= GST_PIPELINE_LEN) {
+		AFB_ERROR("pipeline string too long");
+		return -1;
+	}
+	pipeline = gst_parse_launch(gst_pipeline_str, NULL);
+	if(!pipeline) {
+		AFB_ERROR("pipeline construction failed!");
+		return -1;
+	}
+
+	// Start pipeline in paused state
+	gst_element_set_state(pipeline, GST_STATE_PAUSED);
 
 	present = true;
 	return 0;
@@ -300,25 +315,29 @@ static void kf_start(void)
 	if(!present)
 		return;
 
-	if (running)
-		return;
-
-	/* TODO: start the stream in pipewire */
-
-	running = true;
+	if(!running) {
+		// Start pipeline
+		gst_element_set_state(pipeline, GST_STATE_PLAYING);
+		running = true;
+	}
 }
 
 static void kf_stop(void)
 {
-	if (!present)
-		return;
+	GstEvent *event;
 
-	if (!running)
-		return;
+	if(present && running) {
+		// Stop pipeline
+		running = false;
+		gst_element_set_state(pipeline, GST_STATE_PAUSED);
 
-	/* TODO: stop the stream in pipewire */
-
-	running = false;
+		// Flush pipeline
+		// This seems required to avoid stutters on starts after a stop
+		event = gst_event_new_flush_start();
+		gst_element_send_event(GST_ELEMENT(pipeline), event);
+		event = gst_event_new_flush_stop(TRUE);
+		gst_element_send_event(GST_ELEMENT(pipeline), event); 
+	}
 }
 
 static void kf_scan_start(radio_scan_direction_t direction,
@@ -339,9 +358,9 @@ static void kf_scan_start(radio_scan_direction_t direction,
 
 	scanning = true;
 	snprintf(cmd,
-			 SI_CTL_CMDLINE_MAXLEN,
-			 "%s /dev/i2c-12 0x65 -l %s",
-			 SI_CTL, direction == SCAN_FORWARD ? "up" : "down");
+		 SI_CTL_CMDLINE_MAXLEN,
+		 "%s /dev/i2c-12 0x65 -l %s",
+		 SI_CTL, direction == SCAN_FORWARD ? "up" : "down");
 	fp = popen(cmd, "r");
 	if(fp == NULL) {
 		AFB_ERROR("Could not run: %s!", cmd);
