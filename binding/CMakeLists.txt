@@ -27,7 +27,8 @@ PROJECT_TARGET_ADD(radio-binding)
 	set(radio_SOURCES
 		radio-binding.c
 		radio_impl_kingfisher.c
-		radio_impl_rtlsdr.c)
+		radio_impl_rtlsdr.c
+		radio_impl_tef665x.c)
 
 	PKG_CHECK_MODULES(SOUND REQUIRED gstreamer-1.0)
 

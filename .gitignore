@@ -1,2 +1,5 @@
 *~
 build*
+.vscode*
+binding/tempo.c
+

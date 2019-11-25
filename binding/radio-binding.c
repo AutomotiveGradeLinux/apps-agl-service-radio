@@ -29,6 +29,7 @@
 #include "radio_impl.h"
 #include "radio_impl_rtlsdr.h"
 #include "radio_impl_kingfisher.h"
+#include "radio_impl_tef665x.h"
 
 static radio_impl_ops_t *radio_impl_ops;
 
@@ -559,6 +560,10 @@ static int init(afb_api_t api)
 	if(rc != 0) {
 		// Look for Kingfisher Si4689
 		radio_impl_ops = &kf_impl_ops;
+		rc = radio_impl_ops->init();
+	}
+	if(rc != 0) {
+		radio_impl_ops = &tef665x_impl_ops;
 		rc = radio_impl_ops->init();
 	}
 	if (rc != 0) {
