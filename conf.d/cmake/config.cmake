@@ -22,6 +22,7 @@
 set(PROJECT_NAME agl-service-radio)
 set(PROJECT_PRETTY_NAME "Radio binding service")
 set(PROJECT_DESCRIPTION "Expose Radio Low Level APIs through AGL Framework")
+set(PROJECT_URL https://gerrit.automotivelinux.org/gerrit/admin/repos/apps/agl-service-radio)
 set(PROJECT_ICON "icon.png")
 set(PROJECT_AUTHOR "Scott Murray")
 set(PROJECT_AUTHOR_MAIL "scott.murray@konsulko.com")
