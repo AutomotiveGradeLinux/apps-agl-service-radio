@@ -178,7 +178,7 @@ static int rtlsdr_init(void)
 	if(!helper_path)
 		return -ENOMEM;
 	if(snprintf(helper_path, HELPER_MAX, "%s/bin/%s --detect", rootdir, HELPER_NAME) == HELPER_MAX) {
-		AFB_ERROR("Could not create command for \"%s --detect\"", HELPER_NAME);
+		AFB_API_ERROR(afbBindingV3root, "Could not create command for \"%s --detect\"", HELPER_NAME);
 		return -EINVAL;
 	}
 	if(system(helper_path) != 0) {
@@ -316,7 +316,7 @@ static int rtlsdr_start_helper(void)
 
 	if(helper_output) {
 		// Indicate desired output to helper
-		AFB_INFO("Setting RADIO_OUTPUT=%s", helper_output);
+		AFB_API_INFO(afbBindingV3root, "Setting RADIO_OUTPUT=%s", helper_output);
 		setenv("RADIO_OUTPUT", helper_output, 1);
 	}
 
@@ -325,15 +325,15 @@ static int rtlsdr_start_helper(void)
 	if(!helper_path)
 		return -ENOMEM;
 	if(snprintf(helper_path, PATH_MAX, "%s/bin/%s", rootdir, HELPER_NAME) == PATH_MAX) {
-		AFB_ERROR("Could not create path to %s", HELPER_NAME);
+		AFB_API_ERROR(afbBindingV3root, "Could not create path to %s", HELPER_NAME);
 		return -EINVAL;
 	}
 	helper_pid = popen2(helper_path, &helper_out, &helper_in);
 	if(helper_pid < 0) {
-		AFB_ERROR("Could not run %s!", HELPER_NAME);
+		AFB_API_ERROR(afbBindingV3root, "Could not run %s!", HELPER_NAME);
 		return -1;
 	}
-	AFB_DEBUG("%s started", HELPER_NAME);
+	AFB_API_DEBUG(afbBindingV3root, "%s started", HELPER_NAME);
 	helper_started = true;
 	free(helper_path);
 
@@ -359,7 +359,7 @@ static void rtlsdr_start(void)
 	rc = write(helper_in, cmd, strlen(cmd));
 	pthread_mutex_unlock(&helper_mutex);
 	if (rc < 0) {
-		AFB_ERROR("Failed to ask \"%s\" to start", HELPER_NAME);
+		AFB_API_ERROR(afbBindingV3root, "Failed to ask \"%s\" to start", HELPER_NAME);
 		return;
 	}
 	active = true;
@@ -381,7 +381,7 @@ static void rtlsdr_stop(void)
 	rc = write(helper_in, cmd, strlen(cmd));
 	pthread_mutex_unlock(&helper_mutex);
 	if (rc < 0) {
-		AFB_ERROR("Failed to ask \"%s\" to stop", HELPER_NAME);
+		AFB_API_ERROR(afbBindingV3root, "Failed to ask \"%s\" to stop", HELPER_NAME);
 		return;
 	}
 	active = false;
@@ -454,7 +454,7 @@ static void rtlsdr_scan_stop(void)
 	rc = write(helper_in, cmd, strlen(cmd));
 	pthread_mutex_unlock(&helper_mutex);
 	if (rc < 0)
-		AFB_ERROR("Failed to ask \"%s\" to stop scan", HELPER_NAME);
+		AFB_API_ERROR(afbBindingV3root, "Failed to ask \"%s\" to stop scan", HELPER_NAME);
 }
 
 static radio_stereo_mode_t rtlsdr_get_stereo_mode(void)

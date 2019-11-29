@@ -130,7 +130,7 @@ static int kf_init(void)
 					   "scan_valid_snr_threshold",
 					   &error);
 		if(!error) {
-			AFB_INFO("Scan valid SNR level set to %d", n);
+			AFB_API_INFO(afbBindingV3root, "Scan valid SNR level set to %d", n);
 			scan_valid_snr_threshold = n;
 		}
 
@@ -140,14 +140,14 @@ static int kf_init(void)
 					   "scan_valid_rssi_threshold",
 					   &error);
 		if(!error) {
-			AFB_INFO("Scan valid SNR level set to %d", n);
+			AFB_API_INFO(afbBindingV3root, "Scan valid SNR level set to %d", n);
 			scan_valid_rssi_threshold = n;
 		}
 
 		g_key_file_free(conf_file);
 	}
 
-	AFB_INFO("Using FM Bandplan: %s", known_fm_band_plans[bandplan].name);
+	AFB_API_INFO(afbBindingV3root, "Using FM Bandplan: %s", known_fm_band_plans[bandplan].name);
 	current_frequency = kf_get_min_frequency(BAND_FM);
 	snprintf(cmd,
 		sizeof(cmd),
@@ -159,7 +159,7 @@ static int kf_init(void)
 		current_frequency / 1000);
 	rc = system(cmd);
 	if(rc != 0) {
-		AFB_ERROR("%s failed, rc = %d", SI_CTL, rc);
+		AFB_API_ERROR(afbBindingV3root, "%s failed, rc = %d", SI_CTL, rc);
 		return -1;
 	}
 
@@ -171,12 +171,12 @@ static int kf_init(void)
 		      GST_PIPELINE_LEN,
 		      "alsasrc device=hw:radio ! queue ! audioconvert ! audioresample ! pwaudiosink stream-properties=\"p,media.role=Multimedia\"");
 	if(rc >= GST_PIPELINE_LEN) {
-		AFB_ERROR("pipeline string too long");
+		AFB_API_ERROR(afbBindingV3root, "pipeline string too long");
 		return -1;
 	}
 	pipeline = gst_parse_launch(gst_pipeline_str, NULL);
 	if(!pipeline) {
-		AFB_ERROR("pipeline construction failed!");
+		AFB_API_ERROR(afbBindingV3root, "pipeline construction failed!");
 		return -1;
 	}
 
@@ -363,14 +363,14 @@ static void kf_scan_start(radio_scan_direction_t direction,
 		 SI_CTL, direction == SCAN_FORWARD ? "up" : "down");
 	fp = popen(cmd, "r");
 	if(fp == NULL) {
-		AFB_ERROR("Could not run: %s!", cmd);
+		AFB_API_ERROR(afbBindingV3root, "Could not run: %s!", cmd);
 		return;
 	}
 	// Look for "Frequency:" in output
 	while(fgets(line, SI_CTL_OUTPUT_MAXLEN, fp) != NULL) {
 		if(strncmp("Frequency:", line, 10) == 0) {
 			new_frequency = atoi(line + 10);
-			//AFB_DEBUG("%s: got new_frequency = %d", __FUNCTION__, new_frequency);
+			//AFB_API_DEBUG(afbBindingV3root, "%s: got new_frequency = %d", __FUNCTION__, new_frequency);
 			break;
 		}
 	}

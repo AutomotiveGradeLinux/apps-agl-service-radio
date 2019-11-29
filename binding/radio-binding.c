@@ -33,9 +33,9 @@
 
 static radio_impl_ops_t *radio_impl_ops;
 
-static struct afb_event freq_event;
-static struct afb_event scan_event;
-static struct afb_event status_event;
+static afb_event_t freq_event;
+static afb_event_t scan_event;
+static afb_event_t status_event;
 
 static void freq_callback(uint32_t frequency, void *data)
 {
@@ -62,10 +62,10 @@ static void scan_callback(uint32_t frequency, void *data)
 /*
  * @brief Get (and optionally set) frequency
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void frequency(struct afb_req request)
+static void frequency(afb_req_t request)
 {
 	json_object *ret_json;
 	const char *value = afb_req_value(request, "value");
@@ -77,28 +77,28 @@ static void frequency(struct afb_req request)
 		if(frequency && *p == '\0') {
 			radio_impl_ops->set_frequency(frequency);
 		} else {
-			afb_req_fail(request, "failed", "Invalid scan direction");
+			afb_req_reply(request, NULL, "failed", "Invalid scan direction");
 			return;
 		}
 	}
 	ret_json = json_object_new_object();
 	frequency = radio_impl_ops->get_frequency();
 	json_object_object_add(ret_json, "frequency", json_object_new_int((int32_t) frequency));
-	afb_req_success(request, ret_json, NULL);
+	afb_req_reply(request, ret_json, NULL, NULL);
 }
 
 /* @brief Get RDS information
 *
-* @param struct afb_req : an afb request structure
+* @param afb_req_t : an afb request structure
 *
 */
-static void rds(struct afb_req request)
+static void rds(afb_req_t request)
 {
 	json_object *ret_json;
 	char * rds;
 
 	if (radio_impl_ops->get_rds_info == NULL) {
-		afb_req_fail(request, "failed", "not supported");
+		afb_req_reply(request, NULL, "failed", "not supported");
 		return;
 	}
 
@@ -107,16 +107,16 @@ static void rds(struct afb_req request)
 	json_object_object_add(ret_json, "rds", json_object_new_string(rds?rds:""));
 	free(rds);
 
-	afb_req_success(request, ret_json, NULL);
+	afb_req_reply(request, ret_json, NULL, NULL);
 }
 
 /*
  * @brief Get (and optionally set) frequency band
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void band(struct afb_req request)
+static void band(afb_req_t request)
 {
 	json_object *ret_json;
 	const char *value = afb_req_value(request, "value");
@@ -148,7 +148,7 @@ static void band(struct afb_req request)
 		if(valid) {
 			radio_impl_ops->set_band(band);
 		} else {
-			afb_req_fail(request, "failed", "Invalid band");
+			afb_req_reply(request, NULL, "failed", "Invalid band");
 			return;
 		}
 	}
@@ -156,16 +156,16 @@ static void band(struct afb_req request)
 	band = radio_impl_ops->get_band();
 	sprintf(band_name, "%s", band == BAND_AM ? "AM" : "FM");
 	json_object_object_add(ret_json, "band", json_object_new_string(band_name));
-	afb_req_success(request, ret_json, NULL);
+	afb_req_reply(request, ret_json, NULL, NULL);
 }
 
 /*
  * @brief Check if band is supported
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void band_supported(struct afb_req request)
+static void band_supported(afb_req_t request)
 {
 	json_object *ret_json;
 	const char *value = afb_req_value(request, "band");
@@ -195,23 +195,23 @@ static void band_supported(struct afb_req request)
 		}
 	}
 	if(!valid) {
-		afb_req_fail(request, "failed", "Invalid band");
+		afb_req_reply(request, NULL, "failed", "Invalid band");
 		return;
 	}
 	ret_json = json_object_new_object();
 	json_object_object_add(ret_json,
 			       "supported",
 			       json_object_new_int(radio_impl_ops->band_supported(band)));
-	afb_req_success(request, ret_json, NULL);
+	afb_req_reply(request, ret_json, NULL, NULL);
 }
 
 /*
  * @brief Get frequency range for a band
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void frequency_range(struct afb_req request)
+static void frequency_range(afb_req_t request)
 {
 	json_object *ret_json;
 	const char *value = afb_req_value(request, "band");
@@ -243,7 +243,7 @@ static void frequency_range(struct afb_req request)
 		}
 	}
 	if(!valid) {
-		afb_req_fail(request, "failed", "Invalid band");
+		afb_req_reply(request, NULL, "failed", "Invalid band");
 		return;
 	}
 	ret_json = json_object_new_object();
@@ -251,16 +251,16 @@ static void frequency_range(struct afb_req request)
 	max_frequency = radio_impl_ops->get_max_frequency(band);
 	json_object_object_add(ret_json, "min", json_object_new_int((int32_t) min_frequency));
 	json_object_object_add(ret_json, "max", json_object_new_int((int32_t) max_frequency));
-	afb_req_success(request, ret_json, NULL);
+	afb_req_reply(request, ret_json, NULL, NULL);
 }
 
 /*
  * @brief Get frequency step size (Hz) for a band
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void frequency_step(struct afb_req request)
+static void frequency_step(afb_req_t request)
 {
 	json_object *ret_json;
 	const char *value = afb_req_value(request, "band");
@@ -291,26 +291,26 @@ static void frequency_step(struct afb_req request)
 		}
 	}
 	if(!valid) {
-		afb_req_fail(request, "failed", "Invalid band");
+		afb_req_reply(request, NULL, "failed", "Invalid band");
 		return;
 	}
 	ret_json = json_object_new_object();
 	step = radio_impl_ops->get_frequency_step(band);
 	json_object_object_add(ret_json, "step", json_object_new_int((int32_t) step));
-	afb_req_success(request, ret_json, NULL);
+	afb_req_reply(request, ret_json, NULL, NULL);
 }
 
 /*
  * @brief Start radio playback
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void start(struct afb_req request)
+static void start(afb_req_t request)
 {
 	radio_impl_ops->set_output(NULL);
 	radio_impl_ops->start();
-	afb_req_success(request, NULL, NULL);
+	afb_req_reply(request, NULL, NULL, NULL);
 
 	json_object *jresp = json_object_new_object();
 	json_object *value = json_object_new_string("playing");
@@ -321,13 +321,13 @@ static void start(struct afb_req request)
 /*
  * @brief Stop radio playback
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void stop(struct afb_req request)
+static void stop(afb_req_t request)
 {
 	radio_impl_ops->stop();
-	afb_req_success(request, NULL, NULL);
+	afb_req_reply(request, NULL, NULL, NULL);
 
 	json_object *jresp = json_object_new_object();
 	json_object *value = json_object_new_string("stopped");
@@ -338,10 +338,10 @@ static void stop(struct afb_req request)
 /*
  * @brief Scan for a station in the specified direction
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void scan_start(struct afb_req request)
+static void scan_start(afb_req_t request)
 {
 	const char *value = afb_req_value(request, "direction");
 	int valid = 0;
@@ -370,32 +370,32 @@ static void scan_start(struct afb_req request)
 		}
 	}
 	if(!valid) {
-		afb_req_fail(request, "failed", "Invalid direction");
+		afb_req_reply(request, NULL, "failed", "Invalid direction");
 		return;
 	}
 	radio_impl_ops->scan_start(direction, scan_callback, NULL);
-	afb_req_success(request, NULL, NULL);
+	afb_req_reply(request, NULL, NULL, NULL);
 }
 
 /*
  * @brief Stop station scan
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void scan_stop(struct afb_req request)
+static void scan_stop(afb_req_t request)
 {
 	radio_impl_ops->scan_stop();
-	afb_req_success(request, NULL, NULL);
+	afb_req_reply(request, NULL, NULL, NULL);
 }
 
 /*
  * @brief Get (and optionally set) stereo mode
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void stereo_mode(struct afb_req request)
+static void stereo_mode(afb_req_t request)
 {
 	json_object *ret_json;
 	const char *value = afb_req_value(request, "value");
@@ -426,7 +426,7 @@ static void stereo_mode(struct afb_req request)
 		if(valid) {
 			radio_impl_ops->set_stereo_mode(mode);
 		} else {
-			afb_req_fail(request, "failed", "Invalid mode");
+			afb_req_reply(request, NULL, "failed", "Invalid mode");
 			return;
 		}
 	}
@@ -434,16 +434,16 @@ static void stereo_mode(struct afb_req request)
 	mode = radio_impl_ops->get_stereo_mode();
 
 	json_object_object_add(ret_json, "mode", json_object_new_string(mode == MONO ? "mono" : "stereo"));
-	afb_req_success(request, ret_json, NULL);
+	afb_req_reply(request, ret_json, NULL, NULL);
 }
 
 /*
  * @brief Subscribe for an event
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void subscribe(struct afb_req request)
+static void subscribe(afb_req_t request)
 {
 	const char *value = afb_req_value(request, "value");
 	if(value) {
@@ -454,20 +454,20 @@ static void subscribe(struct afb_req request)
 		} else if(!strcasecmp(value, "status")) {
 			afb_req_subscribe(request, status_event);
 		} else {
-			afb_req_fail(request, "failed", "Invalid event");
+			afb_req_reply(request, NULL, "failed", "Invalid event");
 			return;
 		}
 	}
-	afb_req_success(request, NULL, NULL);
+	afb_req_reply(request, NULL, NULL, NULL);
 }
 
 /*
  * @brief Unsubscribe for an event
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void unsubscribe(struct afb_req request)
+static void unsubscribe(afb_req_t request)
 {
 	const char *value = afb_req_value(request, "value");
 	if(value) {
@@ -478,14 +478,14 @@ static void unsubscribe(struct afb_req request)
 		} else if(!strcasecmp(value, "status")) {
 			afb_req_unsubscribe(request, status_event);
 		} else {
-			afb_req_fail(request, "failed", "Invalid event");
+			afb_req_reply(request, NULL, "failed", "Invalid event");
 			return;
 		}
 	}
-	afb_req_success(request, NULL, NULL);
+	afb_req_reply(request, NULL, NULL, NULL);
 }
 
-static const struct afb_verb_v2 verbs[]= {
+static const afb_verb_t verbs[]= {
 	{ .verb = "frequency",		.session = AFB_SESSION_NONE, .callback = frequency,		.info = "Get/Set frequency" },
 	{ .verb = "band",		.session = AFB_SESSION_NONE, .callback = band,			.info = "Get/Set band" },
 	{ .verb = "rds",		.session = AFB_SESSION_NONE, .callback = rds,			.info = "Get RDS information" },
@@ -513,10 +513,10 @@ static int init()
 		rc = radio_impl_ops->init();
 	}
 	if (rc != 0) {
-		AFB_ERROR("No radio device found, exiting");
+		AFB_API_ERROR(afbBindingV3root, "No radio device found, exiting");
 	}
 	if(rc == 0) {
-		AFB_NOTICE("%s found\n", radio_impl_ops->name);
+		AFB_API_NOTICE(afbBindingV3root, "%s found\n", radio_impl_ops->name);
 		radio_impl_ops->set_frequency_callback(freq_callback, NULL);
 	} else {
 		return rc;
@@ -530,7 +530,7 @@ static int init()
 	return 0;
 }
 
-const struct afb_binding_v2 afbBindingV2 = {
+const afb_binding_t afbBindingExport = {
 	.info = "radio service",
 	.api  = "radio",
 	.verbs = verbs,

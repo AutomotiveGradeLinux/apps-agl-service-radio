@@ -21,7 +21,7 @@
 # Add target to project dependency list
 PROJECT_TARGET_ADD(radio-binding)
 
-	add_definitions(-DAFB_BINDING_VERSION=2)
+	add_definitions(-DAFB_BINDING_VERSION=3)
 
 	# Define project Targets
 	set(radio_SOURCES
