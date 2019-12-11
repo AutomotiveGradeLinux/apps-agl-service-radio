@@ -1,6 +1,6 @@
 ###########################################################################
 # Copyright 2015, 2016, 2017 IoT.bzh
-# Copyright (C) 2018 Konsulko Group
+# Copyright (C) 2018, 2019 Konsulko Group
 #
 # author: Fulup Ar Foll <fulup@iot.bzh>
 # contrib: Romain Forlot <romain.forlot@iot.bzh>
@@ -21,7 +21,7 @@
 # Add target to project dependency list
 PROJECT_TARGET_ADD(radio-binding)
 
-	add_definitions(-DAFB_BINDING_VERSION=2)
+	add_definitions(-DAFB_BINDING_VERSION=3)
 
 	# Define project Targets
 	set(radio_SOURCES

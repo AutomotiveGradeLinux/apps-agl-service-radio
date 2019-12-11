@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Konsulko Group
+ * Copyright (C) 2017, 2019 Konsulko Group
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <json-c/json.h>
-
 #include <afb/afb-binding.h>
 
 #include "radio_impl.h"
@@ -33,9 +32,16 @@
 
 static radio_impl_ops_t *radio_impl_ops;
 
-static struct afb_event freq_event;
-static struct afb_event scan_event;
-static struct afb_event status_event;
+static afb_event_t freq_event;
+static afb_event_t scan_event;
+static afb_event_t status_event;
+
+static const char *signalcomposer_events[] = {
+	"event.media.next",
+	"event.media.previous",
+	"event.media.mode",
+	NULL,
+};
 
 static void freq_callback(uint32_t frequency, void *data)
 {
@@ -65,7 +71,7 @@ static void scan_callback(uint32_t frequency, void *data)
  * @param struct afb_req : an afb request structure
  *
  */
-static void frequency(struct afb_req request)
+static void frequency(afb_req_t request)
 {
 	json_object *ret_json;
 	const char *value = afb_req_value(request, "value");
@@ -89,10 +95,10 @@ static void frequency(struct afb_req request)
 
 /* @brief Get RDS information
 *
-* @param struct afb_req : an afb request structure
+* @param afb_req_t : an afb request structure
 *
 */
-static void rds(struct afb_req request)
+static void rds(afb_req_t request)
 {
 	json_object *ret_json;
 	char * rds;
@@ -113,10 +119,10 @@ static void rds(struct afb_req request)
 /*
  * @brief Get (and optionally set) frequency band
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void band(struct afb_req request)
+static void band(afb_req_t request)
 {
 	json_object *ret_json;
 	const char *value = afb_req_value(request, "value");
@@ -162,10 +168,10 @@ static void band(struct afb_req request)
 /*
  * @brief Check if band is supported
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void band_supported(struct afb_req request)
+static void band_supported(afb_req_t request)
 {
 	json_object *ret_json;
 	const char *value = afb_req_value(request, "band");
@@ -208,10 +214,10 @@ static void band_supported(struct afb_req request)
 /*
  * @brief Get frequency range for a band
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void frequency_range(struct afb_req request)
+static void frequency_range(afb_req_t request)
 {
 	json_object *ret_json;
 	const char *value = afb_req_value(request, "band");
@@ -257,10 +263,10 @@ static void frequency_range(struct afb_req request)
 /*
  * @brief Get frequency step size (Hz) for a band
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void frequency_step(struct afb_req request)
+static void frequency_step(afb_req_t request)
 {
 	json_object *ret_json;
 	const char *value = afb_req_value(request, "band");
@@ -303,10 +309,10 @@ static void frequency_step(struct afb_req request)
 /*
  * @brief Start radio playback
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void start(struct afb_req request)
+static void start(afb_req_t request)
 {
 	radio_impl_ops->set_output(NULL);
 	radio_impl_ops->start();
@@ -321,10 +327,10 @@ static void start(struct afb_req request)
 /*
  * @brief Stop radio playback
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void stop(struct afb_req request)
+static void stop(afb_req_t request)
 {
 	radio_impl_ops->stop();
 	afb_req_success(request, NULL, NULL);
@@ -338,10 +344,10 @@ static void stop(struct afb_req request)
 /*
  * @brief Scan for a station in the specified direction
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void scan_start(struct afb_req request)
+static void scan_start(afb_req_t request)
 {
 	const char *value = afb_req_value(request, "direction");
 	int valid = 0;
@@ -380,10 +386,10 @@ static void scan_start(struct afb_req request)
 /*
  * @brief Stop station scan
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void scan_stop(struct afb_req request)
+static void scan_stop(afb_req_t request)
 {
 	radio_impl_ops->scan_stop();
 	afb_req_success(request, NULL, NULL);
@@ -392,10 +398,10 @@ static void scan_stop(struct afb_req request)
 /*
  * @brief Get (and optionally set) stereo mode
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void stereo_mode(struct afb_req request)
+static void stereo_mode(afb_req_t request)
 {
 	json_object *ret_json;
 	const char *value = afb_req_value(request, "value");
@@ -440,10 +446,10 @@ static void stereo_mode(struct afb_req request)
 /*
  * @brief Subscribe for an event
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void subscribe(struct afb_req request)
+static void subscribe(afb_req_t request)
 {
 	const char *value = afb_req_value(request, "value");
 	if(value) {
@@ -464,10 +470,10 @@ static void subscribe(struct afb_req request)
 /*
  * @brief Unsubscribe for an event
  *
- * @param struct afb_req : an afb request structure
+ * @param afb_req_t : an afb request structure
  *
  */
-static void unsubscribe(struct afb_req request)
+static void unsubscribe(afb_req_t request)
 {
 	const char *value = afb_req_value(request, "value");
 	if(value) {
@@ -485,24 +491,57 @@ static void unsubscribe(struct afb_req request)
 	afb_req_success(request, NULL, NULL);
 }
 
-static const struct afb_verb_v2 verbs[]= {
-	{ .verb = "frequency",		.session = AFB_SESSION_NONE, .callback = frequency,		.info = "Get/Set frequency" },
-	{ .verb = "band",		.session = AFB_SESSION_NONE, .callback = band,			.info = "Get/Set band" },
-	{ .verb = "rds",		.session = AFB_SESSION_NONE, .callback = rds,			.info = "Get RDS information" },
-	{ .verb = "band_supported",	.session = AFB_SESSION_NONE, .callback = band_supported,	.info = "Check band support" },
-	{ .verb = "frequency_range",	.session = AFB_SESSION_NONE, .callback = frequency_range,	.info = "Get frequency range" },
-	{ .verb = "frequency_step",	.session = AFB_SESSION_NONE, .callback = frequency_step,	.info = "Get frequency step" },
-	{ .verb = "start",		.session = AFB_SESSION_NONE, .callback = start,			.info = "Start radio playback" },
-	{ .verb = "stop",		.session = AFB_SESSION_NONE, .callback = stop,			.info = "Stop radio playback" },
-	{ .verb = "scan_start",		.session = AFB_SESSION_NONE, .callback = scan_start,		.info = "Start station scan" },
-	{ .verb = "scan_stop",		.session = AFB_SESSION_NONE, .callback = scan_stop,		.info = "Stop station scan" },
-	{ .verb = "stereo_mode",	.session = AFB_SESSION_NONE, .callback = stereo_mode,		.info = "Get/Set stereo_mode" },
-	{ .verb = "subscribe",		.session = AFB_SESSION_NONE, .callback = subscribe,		.info = "Subscribe for an event" },
-	{ .verb = "unsubscribe",	.session = AFB_SESSION_NONE, .callback = unsubscribe,		.info = "Unsubscribe for an event" },
+static const afb_verb_t verbs[] = {
+	{ .verb = "frequency",		.callback = frequency,		.info = "Get/Set frequency" },
+	{ .verb = "band",		.callback = band,		.info = "Get/Set band" },
+	{ .verb = "rds",		.callback = rds,		.info = "Get RDS information" },
+	{ .verb = "band_supported",	.callback = band_supported,	.info = "Check band support" },
+	{ .verb = "frequency_range",	.callback = frequency_range,	.info = "Get frequency range" },
+	{ .verb = "frequency_step",	.callback = frequency_step,	.info = "Get frequency step" },
+	{ .verb = "start",		.callback = start,		.info = "Start radio playback" },
+	{ .verb = "stop",		.callback = stop,		.info = "Stop radio playback" },
+	{ .verb = "scan_start",		.callback = scan_start,		.info = "Start station scan" },
+	{ .verb = "scan_stop",		.callback = scan_stop,		.info = "Stop station scan" },
+	{ .verb = "stereo_mode",	.callback = stereo_mode,	.info = "Get/Set stereo_mode" },
+	{ .verb = "subscribe",		.callback = subscribe,		.info = "Subscribe for an event" },
+	{ .verb = "unsubscribe",	.callback = unsubscribe,	.info = "Unsubscribe for an event" },
 	{ }
 };
 
-static int init()
+static void onevent(afb_api_t api, const char *event, struct json_object *object)
+{
+	json_object *tmp = NULL;
+	const char *uid;
+	const char *value;
+
+	json_object_object_get_ex(object, "uid", &tmp);
+	if (tmp == NULL)
+		return;
+
+	uid = json_object_get_string(tmp);
+	if (strncmp(uid, "event.media.", 12))
+		return;
+
+	json_object_object_get_ex(object, "value", &tmp);
+	if (tmp == NULL)
+		return;
+
+	value = json_object_get_string(tmp);
+	if (strncmp(value, "true", 4))
+		return;
+
+	if (!strcmp(uid, "event.media.next")) {
+		radio_impl_ops->scan_start(SCAN_FORWARD, scan_callback, NULL);
+	} else if (!strcmp(uid, "event.media.previous")) {
+		radio_impl_ops->scan_start(SCAN_BACKWARD, scan_callback, NULL);
+	} else if (!strcmp(uid, "event.media.mode")) {
+		// Do nothing ATM
+	} else {
+		AFB_WARNING("Unhandled signal-composer uid '%s'", uid);
+	}
+}
+
+static int init(afb_api_t api)
 {
 	// Look for RTL-SDR USB adapter
 	radio_impl_ops = &rtlsdr_impl_ops;
@@ -522,6 +561,26 @@ static int init()
 		return rc;
 	}
 
+	rc = afb_daemon_require_api("signal-composer", 1);
+	if (rc) {
+		AFB_WARNING("unable to initialize signal-composer binding");
+	} else {
+		const char **tmp = signalcomposer_events;
+		json_object *args = json_object_new_object();
+		json_object *signals = json_object_new_array();
+
+		while (*tmp) {
+			json_object_array_add(signals, json_object_new_string(*tmp++));
+		}
+		json_object_object_add(args, "signal", signals);
+		if(json_object_array_length(signals)) {
+			afb_api_call_sync(api, "signal-composer", "subscribe",
+					  args, NULL, NULL, NULL);
+		} else {
+			json_object_put(args);
+		}
+	}
+
 	// Initialize event structures
 	freq_event = afb_daemon_make_event("frequency");
 	scan_event = afb_daemon_make_event("station_found");
@@ -530,9 +589,10 @@ static int init()
 	return 0;
 }
 
-const struct afb_binding_v2 afbBindingV2 = {
-	.info = "radio service",
+const afb_binding_t afbBindingV3 = {
 	.api  = "radio",
+	.specification = "Radio API",
 	.verbs = verbs,
+	.onevent = onevent,
 	.init = init,
 };
