@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Konsulko Group
+ * Copyright (C) 2017, 2019 Konsulko Group
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <json-c/json.h>
-
 #include <afb/afb-binding.h>
 
 #include "radio_impl.h"
@@ -36,6 +35,13 @@ static radio_impl_ops_t *radio_impl_ops;
 static afb_event_t freq_event;
 static afb_event_t scan_event;
 static afb_event_t status_event;
+
+static const char *signalcomposer_events[] = {
+	"event.media.next",
+	"event.media.previous",
+	"event.media.mode",
+	NULL,
+};
 
 static void freq_callback(uint32_t frequency, void *data)
 {
@@ -502,7 +508,40 @@ static const afb_verb_t verbs[]= {
 	{ }
 };
 
-static int init()
+static void onevent(afb_api_t api, const char *event, struct json_object *object)
+{
+	json_object *tmp = NULL;
+	const char *uid;
+	const char *value;
+
+	json_object_object_get_ex(object, "uid", &tmp);
+	if (tmp == NULL)
+		return;
+
+	uid = json_object_get_string(tmp);
+	if (strncmp(uid, "event.media.", 12))
+		return;
+
+	json_object_object_get_ex(object, "value", &tmp);
+	if (tmp == NULL)
+		return;
+
+	value = json_object_get_string(tmp);
+	if (strncmp(value, "true", 4))
+		return;
+
+	if (!strcmp(uid, "event.media.next")) {
+		radio_impl_ops->scan_start(SCAN_FORWARD, scan_callback, NULL);
+	} else if (!strcmp(uid, "event.media.previous")) {
+		radio_impl_ops->scan_start(SCAN_BACKWARD, scan_callback, NULL);
+	} else if (!strcmp(uid, "event.media.mode")) {
+		// Do nothing ATM
+	} else {
+		AFB_WARNING("Unhandled signal-composer uid '%s'", uid);
+	}
+}
+
+static int init(afb_api_t api)
 {
 	// Look for RTL-SDR USB adapter
 	radio_impl_ops = &rtlsdr_impl_ops;
@@ -522,6 +561,26 @@ static int init()
 		return rc;
 	}
 
+	rc = afb_daemon_require_api("signal-composer", 1);
+	if (rc) {
+		AFB_WARNING("unable to initialize signal-composer binding");
+	} else {
+		const char **tmp = signalcomposer_events;
+		json_object *args = json_object_new_object();
+		json_object *signals = json_object_new_array();
+
+		while (*tmp) {
+			json_object_array_add(signals, json_object_new_string(*tmp++));
+		}
+		json_object_object_add(args, "signal", signals);
+		if(json_object_array_length(signals)) {
+			afb_api_call_sync(api, "signal-composer", "subscribe",
+					  args, NULL, NULL, NULL);
+		} else {
+			json_object_put(args);
+		}
+	}
+
 	// Initialize event structures
 	freq_event = afb_daemon_make_event("frequency");
 	scan_event = afb_daemon_make_event("station_found");
@@ -533,6 +592,8 @@ static int init()
 const afb_binding_t afbBindingExport = {
 	.info = "radio service",
 	.api  = "radio",
+	.specification = "Radio API",
 	.verbs = verbs,
+	.onevent = onevent,
 	.init = init,
 };
