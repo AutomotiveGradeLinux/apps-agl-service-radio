@@ -53,6 +53,7 @@ static fm_band_plan_t known_fm_band_plans[5] = {
 };
 
 static unsigned int bandplan = 0;
+static bool corking = false;
 static bool present = false;
 static uint32_t current_frequency;
 static int scan_valid_snr_threshold = 128;
@@ -68,6 +69,24 @@ static void *freq_callback_data;
 
 static uint32_t kf_get_min_frequency(radio_band_t band);
 static void kf_scan_stop(void);
+
+static gboolean handle_message(GstBus *bus, GstMessage *msg, __attribute__((unused)) void *ptr)
+{
+	GstState state;
+
+	if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_REQUEST_STATE) {
+
+		gst_message_parse_request_state(msg, &state);
+
+		if (state == GST_STATE_PAUSED)
+			corking = true;
+		else if (state == GST_STATE_PLAYING)
+			corking = false;
+
+	}
+
+	return TRUE;
+}
 
 static int kf_init(void)
 {
@@ -182,6 +201,8 @@ static int kf_init(void)
 
 	// Start pipeline in paused state
 	gst_element_set_state(pipeline, GST_STATE_PAUSED);
+
+	gst_bus_add_watch(gst_element_get_bus(pipeline), (GstBusFunc) handle_message, NULL);
 
 	present = true;
 	return 0;
@@ -310,6 +331,11 @@ static uint32_t kf_get_frequency_step(radio_band_t band)
 	return ret;
 }
 
+static bool kf_get_corking_state(void)
+{
+	return corking;
+}
+
 static void kf_start(void)
 {
 	if(!present)
@@ -432,6 +458,7 @@ radio_impl_ops_t kf_impl_ops = {
 	.get_min_frequency = kf_get_min_frequency,
 	.get_max_frequency = kf_get_max_frequency,
 	.get_frequency_step = kf_get_frequency_step,
+	.get_corking_state = kf_get_corking_state,
 	.start = kf_start,
 	.stop = kf_stop,
 	.scan_start = kf_scan_start,

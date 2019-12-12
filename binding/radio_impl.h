@@ -64,6 +64,8 @@ typedef struct {
 
 	uint32_t (*get_frequency_step)(radio_band_t band);
 
+	bool (*get_corking_state)(void);
+
 	void (*start)(void);
 
 	void (*stop)(void);
