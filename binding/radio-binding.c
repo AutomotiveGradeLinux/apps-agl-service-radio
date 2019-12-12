@@ -522,6 +522,10 @@ static void onevent(afb_api_t api, const char *event, struct json_object *object
 	if (strncmp(uid, "event.media.", 12))
 		return;
 
+	if (radio_impl_ops->get_corking_state &&
+			radio_impl_ops->get_corking_state())
+		return;
+
 	json_object_object_get_ex(object, "value", &tmp);
 	if (tmp == NULL)
 		return;
