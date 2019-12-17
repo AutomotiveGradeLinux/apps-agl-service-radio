@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017,2018 Konsulko Group
+ * Copyright (C) 2017-2019 Konsulko Group
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,10 @@
 #define SI_CTL_OUTPUT_MAXLEN	128
 
 #define GST_PIPELINE_LEN	256
+
+// Flag to enable using GST_STATE_READY instead of GST_STATE_PAUSED to trigger
+// Wireplumber policy mechanism. Hopefully temporary.
+#define WIREPLUMBER_WORKAROUND
 
 // Structure to describe FM band plans, all values in Hz.
 typedef struct {
@@ -200,7 +204,11 @@ static int kf_init(void)
 	}
 
 	// Start pipeline in paused state
+#ifdef WIREPLUMBER_WORKAROUND
+	gst_element_set_state(pipeline, GST_STATE_READY);
+#else
 	gst_element_set_state(pipeline, GST_STATE_PAUSED);
+#endif
 
 	gst_bus_add_watch(gst_element_get_bus(pipeline), (GstBusFunc) handle_message, NULL);
 
@@ -341,10 +349,11 @@ static void kf_start(void)
 	if(!present)
 		return;
 
-	if(!running) {
+	if(!running || corking) {
 		// Start pipeline
 		gst_element_set_state(pipeline, GST_STATE_PLAYING);
 		running = true;
+		corking = false;
 	}
 }
 
@@ -355,7 +364,12 @@ static void kf_stop(void)
 	if(present && running) {
 		// Stop pipeline
 		running = false;
+#ifdef WIREPLUMBER_WORKAROUND
+		gst_element_set_state(pipeline, GST_STATE_READY);
+#else
 		gst_element_set_state(pipeline, GST_STATE_PAUSED);
+#endif
+		corking = false;
 
 		// Flush pipeline
 		// This seems required to avoid stutters on starts after a stop
