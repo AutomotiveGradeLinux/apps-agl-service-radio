@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Konsulko Group
+ * Copyright (C) 2018, 2019 Konsulko Group
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,10 @@
 
 #include "radio_output.h"
 #include "rtl_fm.h"
+
+// Flag to enable using GST_STATE_READY instead of GST_STATE_PAUSED to trigger
+// Wireplumber policy mechanism. Hopefully temporary.
+#define WIREPLUMBER_WORKAROUND
 
 // Output buffer
 static unsigned int extra;
@@ -96,7 +100,11 @@ int radio_output_open()
 		     NULL);
 
 	// Start pipeline in paused state
+#ifdef WIREPLUMBER_WORKAROUND
+	gst_element_set_state(pipeline, GST_STATE_READY);
+#else
 	gst_element_set_state(pipeline, GST_STATE_PAUSED);
+#endif
 
 	// Set up output buffer
 	extra = 0;
@@ -129,7 +137,11 @@ void radio_output_stop(void)
 	if(pipeline && running) {
 		// Stop pipeline
 		running = false;
+#ifdef WIREPLUMBER_WORKAROUND
+		gst_element_set_state(pipeline, GST_STATE_READY);
+#else
 		gst_element_set_state(pipeline, GST_STATE_PAUSED);
+#endif
 
 		// Flush pipeline
 		// This seems required to avoid stutters on starts after a stop
