@@ -79,17 +79,29 @@ static gboolean handle_message(GstBus *bus, GstMessage *msg, __attribute__((unus
 	GstState state;
 
 	if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_REQUEST_STATE) {
-
 		gst_message_parse_request_state(msg, &state);
 
-		if (state == GST_STATE_PAUSED)
+		if (state == GST_STATE_PAUSED) {
 			corking = true;
-		else if (state == GST_STATE_PLAYING)
+
+			// NOTE: Explicitly using PAUSED here, this case currently
+			//       is separate from the general PAUSED/READY issue wrt
+			//       Wireplumber policy.
+			gst_element_set_state(pipeline, GST_STATE_PAUSED);
+		} else if (state == GST_STATE_PLAYING) {
 			corking = false;
 
+			gst_element_set_state(pipeline, GST_STATE_PLAYING);
+		}
 	}
 
 	return TRUE;
+}
+
+static void *gstreamer_loop_thread(void *ptr)
+{
+	g_main_loop_run(g_main_loop_new(NULL, FALSE));
+	return NULL;
 }
 
 static int kf_init(void)
@@ -101,6 +113,7 @@ static int kf_init(void)
 	char cmd[SI_CTL_CMDLINE_MAXLEN];
 	int rc;
 	char gst_pipeline_str[GST_PIPELINE_LEN];
+	pthread_t thread_id;
 
 	if(present)
 		return 0;
@@ -211,6 +224,10 @@ static int kf_init(void)
 #endif
 
 	gst_bus_add_watch(gst_element_get_bus(pipeline), (GstBusFunc) handle_message, NULL);
+
+	rc = pthread_create(&thread_id, NULL, gstreamer_loop_thread, NULL);
+	if(rc != 0)
+		return rc;
 
 	present = true;
 	return 0;
@@ -364,19 +381,28 @@ static void kf_stop(void)
 	if(present && running) {
 		// Stop pipeline
 		running = false;
+
 #ifdef WIREPLUMBER_WORKAROUND
-		gst_element_set_state(pipeline, GST_STATE_READY);
+		// NOTE: Using NULL here instead of READY, as it seems to trigger
+		//       some odd behavior in the pipeline; alsasrc does not seem to
+		//       stop, and things get hung up on restart as there are a bunch
+		//       of "old" samples that seemingly confuse pwaudiosink.  Going
+		//       to NULL state seems to tear down things enough to avoid
+		//       whatever happens.
+		gst_element_set_state(pipeline, GST_STATE_NULL);
 #else
 		gst_element_set_state(pipeline, GST_STATE_PAUSED);
 #endif
 		corking = false;
 
+#ifndef WIREPLUMBER_WORKAROUND
 		// Flush pipeline
 		// This seems required to avoid stutters on starts after a stop
 		event = gst_event_new_flush_start();
 		gst_element_send_event(GST_ELEMENT(pipeline), event);
 		event = gst_event_new_flush_stop(TRUE);
 		gst_element_send_event(GST_ELEMENT(pipeline), event); 
+#endif
 	}
 }
 
