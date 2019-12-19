@@ -36,6 +36,8 @@ static afb_event_t freq_event;
 static afb_event_t scan_event;
 static afb_event_t status_event;
 
+static bool playing;
+
 static const char *signalcomposer_events[] = {
 	"event.media.next",
 	"event.media.previous",
@@ -316,6 +318,7 @@ static void start(afb_req_t request)
 {
 	radio_impl_ops->set_output(NULL);
 	radio_impl_ops->start();
+	playing = true;
 	afb_req_reply(request, NULL, NULL, NULL);
 
 	json_object *jresp = json_object_new_object();
@@ -333,6 +336,7 @@ static void start(afb_req_t request)
 static void stop(afb_req_t request)
 {
 	radio_impl_ops->stop();
+	playing = false;
 	afb_req_reply(request, NULL, NULL, NULL);
 
 	json_object *jresp = json_object_new_object();
@@ -522,9 +526,11 @@ static void onevent(afb_api_t api, const char *event, struct json_object *object
 	if (strncmp(uid, "event.media.", 12))
 		return;
 
-	if (radio_impl_ops->get_corking_state &&
-			radio_impl_ops->get_corking_state())
+	if (!playing ||
+	    (radio_impl_ops->get_corking_state &&
+	     radio_impl_ops->get_corking_state())) {
 		return;
+	}
 
 	json_object_object_get_ex(object, "value", &tmp);
 	if (tmp == NULL)
