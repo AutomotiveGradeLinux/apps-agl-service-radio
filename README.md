@@ -12,7 +12,7 @@ respective audio stream.
 | subscribe          | subscribe to radio events                   | *Request:* {"value": "frequency"}                              |
 | unsubscribe        | unsubscribe to radio events                 | *Request:* {"value": "frequency"}                              |
 | frequency          | get/set tuned radio frequency               | *Request:* {"value": 101100000}                                |
-| band               | get/set current band type (e.g. AM, FM)     | *Request:* {"band": "FM"} *Response:* {"band": "FM"}           |
+| band               | get/set current band type (e.g. AM, FM)     | *Request:* {"value": "FM"} *Response:* {"band": "FM"}          |
 | band_supported     | check if a certain band is supported        | *Request:* {"band": "FM"} *Response:* {"supported": 1}         |
 | frequency_range    | get frequency range for band type           | *Request:* {"band": "FM"} *Response:* {"min": ..., "max": ...} |
 | frequency_step     | get frequency step/spacing for band type    | *Request:* {"band": "FM"} *Response:* {"step": 200000}         |
@@ -35,6 +35,24 @@ JSON response has a single field **value** of the frequency of the discovered ra
 ### status Event JSON Response
 
 JSON response has a single field **value** with one of the values "playing" or "stopped".
+
+### rds Event JSON Response
+
+JSON response has 13 fields:
+
+1. **name** which is the Programme Service (PS) name;
+2. **radiotext** which is the Radio Text (RT) message;
+3. **alternatives** which is an array of Alternative Frequencies (AF);
+4. **minute** which is the current local time minute;
+5. **hour** which is the current local time hour;
+6. **day** which is the current day;
+7. **month** which is the current month;
+8. **year** which is the current year;
+9. **pi** which is the current Programme Identification (PI) code;
+10. **pty** which is the current Programme Type (PTY) code;
+11. **ta** which is the Traffic Announcement (TA) code;
+12. **tp** which is the Traffic Programme (TP) Identification code;
+13. **ms** which is the Music Speech (MS) code.
 
 # AGL Radio Tuner Binding
 

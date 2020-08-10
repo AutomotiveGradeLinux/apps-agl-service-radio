@@ -36,6 +36,7 @@ static radio_impl_ops_t *radio_impl_ops;
 static afb_event_t freq_event;
 static afb_event_t scan_event;
 static afb_event_t status_event;
+static afb_event_t rds_event;
 
 static bool playing;
 
@@ -62,6 +63,12 @@ static void scan_callback(uint32_t frequency, void *data)
 
 	json_object_object_add(jresp, "value", value);
 	afb_event_push(scan_event, json_object_get(jresp));
+}
+
+static void rds_callback(void *rds_data)
+{
+	//rds_data is a json object
+	afb_event_push(rds_event, json_object_get(rds_data));
 }
 
 /*
@@ -464,7 +471,10 @@ static void subscribe(afb_req_t request)
 			afb_req_subscribe(request, scan_event);
 		} else if(!strcasecmp(value, "status")) {
 			afb_req_subscribe(request, status_event);
-		} else {
+		} else if(!strcasecmp(value, "rds")) {
+			afb_req_subscribe(request, rds_event);
+		}
+		 else {
 			afb_req_reply(request, NULL, "failed", "Invalid event");
 			return;
 		}
@@ -488,6 +498,10 @@ static void unsubscribe(afb_req_t request)
 			afb_req_unsubscribe(request, scan_event);
 		} else if(!strcasecmp(value, "status")) {
 			afb_req_unsubscribe(request, status_event);
+			
+		} else if(!strcasecmp(value, "rds")) {
+			afb_req_unsubscribe(request, rds_event);
+			
 		} else {
 			afb_req_reply(request, NULL, "failed", "Invalid event");
 			return;
@@ -572,6 +586,12 @@ static int init(afb_api_t api)
 	if(rc == 0) {
 		AFB_API_NOTICE(afbBindingV3root, "%s found\n", radio_impl_ops->name);
 		radio_impl_ops->set_frequency_callback(freq_callback, NULL);
+		if(radio_impl_ops->set_rds_callback)
+		{
+			radio_impl_ops->set_rds_callback(rds_callback);
+		}
+			
+
 	} else {
 		return rc;
 	}
@@ -600,7 +620,7 @@ static int init(afb_api_t api)
 	freq_event = afb_daemon_make_event("frequency");
 	scan_event = afb_daemon_make_event("station_found");
 	status_event = afb_daemon_make_event("status");
-
+	rds_event = afb_daemon_make_event("rds");
 	return 0;
 }
 

@@ -33,6 +33,8 @@ typedef void (*radio_scan_callback_t)(uint32_t frequency, void *data);
 
 typedef void (*radio_freq_callback_t)(uint32_t frequency, void *data);
 
+typedef void (*radio_rds_callback_t)(void *rds_data);
+
 typedef enum {
 	MONO = 0,
 	STEREO
@@ -51,6 +53,8 @@ typedef struct {
 
 	void (*set_frequency_callback)(radio_freq_callback_t callback,
 				       void *data);
+
+	void (*set_rds_callback)(radio_rds_callback_t callback);
 
 	radio_band_t (*get_band)(void);
 
