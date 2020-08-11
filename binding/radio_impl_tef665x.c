@@ -1068,7 +1068,7 @@ static radio_band_t tef665x_get_band(void)
 
 static void tef665x_set_band(radio_band_t band)
 {
-	uint fd;
+	uint fd = 0;
 	int ret = i2c_init(I2C_DEV, _open, &fd);
 
 	_debug("i2c_init ret value", ret);
@@ -1097,7 +1097,7 @@ static uint32_t tef665x_get_frequency(void)
 
 static void tef665x_set_frequency(uint32_t frequency)
 {
-	uint fd, f;
+	uint fd = 0, f;
 	int ret = i2c_init(I2C_DEV, _open, &fd);
 
 	_debug("i2c_init ret value", ret);
