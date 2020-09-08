@@ -27,6 +27,7 @@
 #include <afb/afb-binding.h>
 
 #include "radio_impl.h"
+#include "radio_impl_null.h"
 #include "radio_impl_rtlsdr.h"
 #include "radio_impl_kingfisher.h"
 #include "radio_impl_tef665x.h"
@@ -581,6 +582,11 @@ static int init(afb_api_t api)
 		rc = radio_impl_ops->init();
 	}
 	if (rc != 0) {
+		radio_impl_ops = &null_impl_ops;
+		rc = radio_impl_ops->init();
+	}
+	if (rc != 0) {
+		// We don't expect the null implementation to fail init, but just in case...
 		AFB_API_ERROR(afbBindingV3root, "No radio device found, exiting");
 	}
 	if(rc == 0) {
@@ -590,8 +596,6 @@ static int init(afb_api_t api)
 		{
 			radio_impl_ops->set_rds_callback(rds_callback);
 		}
-			
-
 	} else {
 		return rc;
 	}

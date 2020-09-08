@@ -27,6 +27,7 @@ PROJECT_TARGET_ADD(radio-binding)
 	set(radio_SOURCES
 		radio-binding.c
 		radio_impl_kingfisher.c
+		radio_impl_null.c
 		radio_impl_rtlsdr.c
 		radio_impl_tef665x.c)
 

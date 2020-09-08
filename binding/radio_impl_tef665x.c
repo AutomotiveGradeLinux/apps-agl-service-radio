@@ -2144,15 +2144,19 @@ static int tef665x_init()
 {
 	char gst_pipeline_str[GST_PIPELINE_LEN];
 	int rc;
-	int ret = i2c_init(I2C_DEV, _open, &file_desc);
 
 	current_am_frequency = known_am_band_plans[am_bandplan].min;
 	current_fm_frequency = known_fm_band_plans[fm_bandplan].min;
 
+	rc = i2c_init(I2C_DEV, _open, &file_desc);
+	if(rc < 0) {
+		AFB_NOTICE("tef665x not present");
+		return -1;
+	}
 	_debug("file_desc= ", file_desc);
 
-	ret = appl_get_identification(file_desc);
-	if(ret != 1){
+	rc = appl_get_identification(file_desc);
+	if(rc != 1){
 		AFB_ERROR("no tef665x!");
 		return -1;
 	}
@@ -2187,11 +2191,11 @@ static int tef665x_init()
 	}
 
 	// Start pipeline in paused state
-	ret = gst_element_set_state(pipeline, GST_STATE_PAUSED);
-	_debug("gst_element_set_state to pause (at the begining)", ret);
+	rc = gst_element_set_state(pipeline, GST_STATE_PAUSED);
+	_debug("gst_element_set_state to pause (at the begining)", rc);
 
-	ret = gst_bus_add_watch(gst_element_get_bus(pipeline), (GstBusFunc) handle_message, NULL);
-	_debug("gst_bus_add_watch   ret", ret);
+	rc = gst_bus_add_watch(gst_element_get_bus(pipeline), (GstBusFunc) handle_message, NULL);
+	_debug("gst_bus_add_watch   rc", rc);
 
 	present = true;
 
@@ -2200,7 +2204,7 @@ static int tef665x_init()
 	pthread_mutex_init (&RDS_Mutex, NULL);
 
 	tef665x_start();
-    return 0;
+	return 0;
 }
 
 static void tef665x_set_frequency_callback(radio_freq_callback_t callback,
