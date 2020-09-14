@@ -76,15 +76,6 @@ typedef struct {
 	uint32_t step;
 } band_plan_t;
 
-typedef struct
-{
-	int16_t level;
-	uint16_t usn;
-	uint16_t wam;
-	int16_t offset;
-	uint16_t bandw;
-}sig_quality_t;
-
 typedef struct{
 	radio_scan_callback_t callback;
 	radio_scan_direction_t direction;
@@ -104,7 +95,7 @@ typedef struct rds_data
 	uint16_t PICode;	
 	uint8_t  DI_Seg;
 	uint8_t  PTY_Code;
-	
+
 	uint8_t Year;
 	uint8_t Month;
 	uint8_t Day;
@@ -124,6 +115,7 @@ pthread_t  rds_thread;
 rds_data_t RDS_Message;
 pthread_mutex_t RDS_Mutex;
 
+station_quality_t quality;
 
 //Threads for handling Scan
 pthread_t scan_thread;
@@ -160,7 +152,6 @@ static void (*freq_callback)(uint32_t, void*);
 static void (*rds_callback) (void*);
 static void *freq_callback_data;
 
-void Get_quality_status (sig_quality_t *);
 int  tef665x_set_rds    (uint32_t i2c_file_desc);
 #define DEBUG 0
 
@@ -183,6 +174,8 @@ static void tef665x_search_frequency (uint32_t);
 static uint32_t tef665x_get_min_frequency  (radio_band_t);
 static uint32_t tef665x_get_max_frequency  (radio_band_t);
 static uint32_t tef665x_get_frequency_step (radio_band_t);
+
+static station_quality_t *tef665x_get_quality_info (void);
 
 static gboolean handle_message(GstBus *bus, GstMessage *msg, __attribute__((unused)) void *ptr)
 {
@@ -1630,108 +1623,6 @@ static int i2c_init(const char *i2c, int state, uint32_t *i2c_file_desc)
 	return 0;
 }
 
-/*
-module 32/33 FM/AM
-cmd 129 Get_Quality_Data
-
-index
-1 status
-    [ 15:0 ]
-    quality detector status
-    [15] = AF_update flag
-		0 = continuous quality data with time stamp
-		1 = AF_Update sampled data
-	[14:10] = reserved
-        0 = no data loss
-        1 = previose data not read, replaced by newer data.
-    [9:0] = quality time stamp
-		0 = tuning is in progress, no quality data available
-	    1 … 320 (* 0.1 ms) = 0.1 … 32 ms after tuning,
-			quality data available, reliability depending on time stamp
-		1000 = > 32 ms after tuning
-			quality data continuously updated
-
-2 level
-	[ 15:0 ] (signed)
-	level detector result
-		-200 … 1200 (0.1 * dBuV) = -20 … 120 dBuV RF input level
-		actual range and accuracy is limited by noise and agc
-
-3 usn
-    [ 15:0 ] = noise detector
-		FM ultrasonic noise detector
-		0 … 1000 (*0.1 %) = 0 … 100% relative usn detector result
-
-4 wam
-    [ 15:0 ] = radio frequency offset
-		FM ‘wideband-AM’ multipath detector
-		0 … 1000 (*0.1 %) = 0 … 100% relative wam detector result
-
-5 offset
-    [ 15:0 ] (signed) = radio frequency offset
-		-1200 … 1200 (*0.1 kHz) = -120 kHz … 120 kHz radio frequency error
-		actual range and accuracy is limited by noise and bandwidth
-
-6 bandwidth
-    [ 15:0 ] = IF bandwidth
-		FM 560 … 3110 [*0.1 kHz] = IF bandwidth 56 … 311 kHz; narrow … wide
-		AM 30 … 80 [*0.1 kHz] = IF bandwidth 3 … 8 kHz; narrow … wide
-
-7 modulation
-	[ 15:0 ] = modulation detector
-		FM 0 … 1000 [*0.1 %] = 0 … 100% modulation = 0 … 75 kHz FM dev.
-*/
-void Get_quality_status(sig_quality_t *quality){
-	
-	uint32_t i2c_file_desc=0;
-	int ret = i2c_init(I2C_DEV, _open, &i2c_file_desc);
-
-    uint8_t	 data[14];
-	int16_t  level=0;
-	uint16_t usn=0;
-	uint16_t wam=0;
-	int16_t  offset=0;
-	uint16_t bw=0;
-
-	for (int looper=0;looper<1;looper++){
-		if(current_band==BAND_FM){
-			ret = tef665x_get_cmd(i2c_file_desc,  TEF665X_MODULE_FM,
-            TEF665X_Cmd_Get_Quality_Data,
-            data, sizeof(data));
-		}
-		else{
-			ret = tef665x_get_cmd(i2c_file_desc,  TEF665X_MODULE_AM,
-            TEF665X_Cmd_Get_Quality_Data,
-            data, sizeof(data));
-		}
-		
-
-		int status=((data[0]&0b00000011)<<8|data[1]);
-		if(status!=1000){
-			AFB_ERROR("Data is not ready, try again; quality time stamp: %d",status);
-			looper--;
-			usleep(1000);
-			continue;
-		}
-	
-		level	=(data[2] <<8|data[3] );
-		usn		=(data[4] <<8|data[5] );
-		wam		=(data[6] <<8|data[7] );
-		offset	=(data[8] <<8|data[9] );
-		bw 		=(data[10]<<8|data[11]);
-	}
-	i2c_init(I2C_DEV, _close, &i2c_file_desc);
-	
-	quality->offset	= offset;
-	quality->bandw 	= bw;
-	quality->level	= level;
-	quality->wam	= wam;
-	quality->usn	= usn;
-	
-
-	return;
-}
-
 static void tef665x_start(void)
 {
 	int ret;
@@ -1942,7 +1833,7 @@ void *scan_frequencies(scan_data_t* scan_data){
 		tef665x_search_frequency(new_freq);
 		
 		//wait 30 ms to make sure quality data is available
-		for(int i=0;i<30;i++)
+		for(int i=0;i<40;i++)
 		{
 			usleep(1000);
 
@@ -1959,40 +1850,18 @@ void *scan_frequencies(scan_data_t* scan_data){
 		}
 
 		//Get Quality of tuned frequeency
-		sig_quality_t quality;
-		Get_quality_status(&quality);
+		tef665x_get_quality_info();//Get_quality_status();
 
-		if((quality.level >260 && quality.usn<100) || quality.bandw>1200)
+		if((quality.rssi >260 /*&& ->.usn<100/**/) || quality.bandw>1200)
 		{
-			AFB_DEBUG("Quality is valid");
-			AFB_INFO("level is: 0x%4X  : %d",quality.level,quality.level);
-			AFB_INFO("usn is: 0x%4X : %d",quality.usn,quality.usn);
-			AFB_INFO("offset is: 0x%4X : %d",quality.offset,quality.offset);
-			AFB_INFO("wam is: 0x%4X : %d",quality.wam,quality.wam);
-			AFB_INFO("Bandwidth is: 0x%4X : %d",quality.bandw,quality.bandw);
-
-			//Send 
+			//Send frequency value
 			if(scan_data->callback)
 			{
 				scan_data->callback(new_freq,NULL);
 			}
-			else
-			{
-				AFB_DEBUG("callback is not valid");
-			}
-
+			
 			break;
 		}
-		else
-		{
-			AFB_DEBUG("Quality is not valid");
-			AFB_ERROR("level is: 0x%4X : %d",quality.level,quality.level);
-			AFB_ERROR("usn is: 0x%4X %d",quality.usn,quality.usn);
-			AFB_ERROR("offset is: 0x%4X %d",quality.offset,quality.offset);
-			AFB_ERROR("wam is: 0x%4X %d",quality.wam,quality.wam);
-			AFB_ERROR("bandwidth is: 0x%4X %d",quality.bandw,quality.bandw);
-		}
-
 		usleep(100);
 	}
 
@@ -2022,11 +1891,97 @@ static char *tef665x_get_rds_info(void)
 }
 
 /*
+ * @brief Get latest quality Info and send quality parameters as response
+ *
+ * module 32/33 FM/AM
+ * cmd 129 Get_Quality_Data
+ *
+ * index
+ * 1 status
+ *   [ 15:0 ]
+ *     quality detector status
+ *     [15] = AF_update flag
+ * 		0 = continuous quality data with time stamp
+ * 		1 = AF_Update sampled data
+ * 	[14:10] = reserved
+ *         0 = no data loss
+ *         1 = previose data not read, replaced by newer data.
+ *     [9:0] = quality time stamp
+ * 		0 = tuning is in progress, no quality data available
+ * 	    1 … 320 (* 0.1 ms) = 0.1 … 32 ms after tuning,
+ * 			quality data available, reliability depending on time stamp
+ * 		1000 = > 32 ms after tuning
+ * 			quality data continuously updated
+ *
+ * 2 level
+ * 	[ 15:0 ] (signed)
+ * 	level detector result
+ * 		-200 … 1200 (0.1 * dBuV) = -20 … 120 dBuV RF input level
+ * 		actual range and accuracy is limited by noise and agc
+ *
+ * 3 usn
+ *     [ 15:0 ] = noise detector
+ * 		FM ultrasonic noise detector
+ * 		0 … 1000 (*0.1 %) = 0 … 100% relative usn detector result
+ *
+ * 4 wam
+ *     [ 15:0 ] = radio frequency offset
+ * 		FM ‘wideband-AM’ multipath detector
+ * 	0 … 1000 (*0.1 %) = 0 … 100% relative wam detector result
+ *
+ * 5 offset
+ *     [ 15:0 ] (signed) = radio frequency offset
+ * 		-1200 … 1200 (*0.1 kHz) = -120 kHz … 120 kHz radio frequency error
+ * 		actual range and accuracy is limited by noise and bandwidth
+ *
+ * 6 bandwidth
+ *     [ 15:0 ] = IF bandwidth
+ * 		FM 560 … 3110 [*0.1 kHz] = IF bandwidth 56 … 311 kHz; narrow … wide
+ * 		AM 30 … 80 [*0.1 kHz] = IF bandwidth 3 … 8 kHz; narrow … wide
+ *
+ * 7 modulation
+ * 	[ 15:0 ] = modulation detector
+ * 		FM 0 … 1000 [*0.1 %] = 0 … 100% modulation = 0 … 75 kHz FM dev.
+ *
+ * @return: cast station_quality_t pointer as response
+ *
+ */
+
+static station_quality_t *tef665x_get_quality_info(void)
+{
+    uint32_t i2c_file_desc=0;
+    uint8_t	 data[14];
+
+    int ret = i2c_init(I2C_DEV, _open, &i2c_file_desc);
+    if(current_band==BAND_FM)
+	{
+		ret = tef665x_get_cmd(i2c_file_desc,  TEF665X_MODULE_FM,
+		TEF665X_Cmd_Get_Quality_Data,
+		data, sizeof(data));
+	}
+	else
+	{
+		ret = tef665x_get_cmd(i2c_file_desc,  TEF665X_MODULE_AM,
+		TEF665X_Cmd_Get_Quality_Data,
+		data, sizeof(data));
+	}
+	i2c_init(I2C_DEV, _close, &i2c_file_desc);
+
+    quality.af_update  =   data[0]&0b10000000;
+    quality.time_stamp = ((data[0]&0b00000011)<<8 | data[1]);
+    quality.rssi	   = (data[2] << 8 | data[3] );
+    quality.usn		   = (data[4] << 8 | data[5] );
+    quality.bandw 	   = (data[10]<< 8 | data[11]);
+
+    return &quality;
+}
+
+/*
  * @brief Start Scan
- * 
- * @param radio_scan_direction_t direction which is the scan direction and can be 
+ *
+ * @param radio_scan_direction_t direction which is the scan direction and can be
  *                               SCAN_FORWARD or SCAN_BACKWARD
- * @param radio_scan_callback_t  callback which is the callback for sending result of search to 
+ * @param radio_scan_callback_t  callback which is the callback for sending result of search to
  *                               station_found ecent subscribers
  * @return void
  */
@@ -2034,7 +1989,6 @@ static void tef665x_scan_start(radio_scan_direction_t direction,
 			  radio_scan_callback_t callback,
 			  void *data)
 {
-
 	//Stop RDS if enabled
 	pthread_mutex_unlock (&RDS_Mutex);
 	
@@ -2085,7 +2039,6 @@ static void tef665x_scan_stop(void)
 		AFB_DEBUG(" Wait for unlocking scan Thread");
 	}
 }
-
 
 /*
 module 32 / 33 FM / AM
@@ -2257,6 +2210,19 @@ static uint32_t tef665x_get_frequency(void)
 	}
 }
 
+static void tef665x_set_alternative_frequency(uint32_t frequency)
+{
+	uint32_t fd = 0;
+	int ret = i2c_init(I2C_DEV, _open, &fd);
+	
+	if(current_band == BAND_FM)
+	{
+		FM_tune_to(fd, eAR_TuningAction_AF_Update, frequency / 10000);
+	}
+	
+	i2c_init(I2C_DEV, _close, &fd);
+}
+
 static void tef665x_set_frequency(uint32_t frequency)
 {
 	uint32_t fd = 0;
@@ -2411,5 +2377,7 @@ radio_impl_ops_t tef665x_impl_ops = {
 	.scan_stop = tef665x_scan_stop,
 	.get_stereo_mode = tef665x_get_stereo_mode,
 	//.set_stereo_mode = tef665x_set_stereo_mode,*/
-	.get_rds_info = tef665x_get_rds_info
+	.get_rds_info = tef665x_get_rds_info,
+	.get_quality_info = tef665x_get_quality_info,
+	.set_alternative_frequency  = tef665x_set_alternative_frequency
 };

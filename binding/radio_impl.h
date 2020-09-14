@@ -40,6 +40,34 @@ typedef enum {
 	STEREO
 } radio_stereo_mode_t;
 
+/*
+ * AF_update
+ * true if quality belongs to an alternative frequency
+ *
+ * time_stamp
+ * if time_stamp is zero, quality data won't be valid
+ * reliability depending on time stamp
+ * it takes some time after tuning to get valid quality data
+ *
+ * rssi
+ * (signed)
+ * level detector result(RF input level)
+ *
+ * usn
+ * FM ultrasonic noise detector (relative usn detector result)
+ *
+ * bandwidth
+ * IF bandwidth
+ */
+typedef struct
+{
+	bool     af_update;
+	uint16_t time_stamp;
+	int16_t  rssi;
+	uint16_t usn;
+	uint16_t bandw;
+} station_quality_t;
+
 typedef struct {
 	char *name;
 
@@ -86,6 +114,9 @@ typedef struct {
 
 	char * (*get_rds_info)(void);
 
+	station_quality_t * (*get_quality_info)(void);
+
+	void (*set_alternative_frequency)(uint32_t frequency);
 } radio_impl_ops_t;
 
 #endif /* _RADIO_IMPL_H */

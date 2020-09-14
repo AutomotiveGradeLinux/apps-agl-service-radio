@@ -22,6 +22,8 @@ respective audio stream.
 | scan_stop          | stop scanning for station                   |                                                                |
 | stereo_mode        | get/set stereo or mono mode                 | *Request:* {"value": "stereo" or "mono"}                       |
 | rds                | get current RDS data                        |                                                                |
+| quality            | get station quality                         |                                                                |
+| alternative_frequency | check an alternative frequency and retune | *Request:* {"value": 104900000}                               |
 
 ## Events
 

@@ -143,6 +143,97 @@ static void rds(afb_req_t request)
 	afb_req_reply(request, ret_json, NULL, NULL);
 }
 
+/* @brief Get quality information
+ *
+ * @param afb_req_t : an afb request structure
+ *
+ */
+static void quality(afb_req_t request)
+{
+	json_object *ret_json;
+	station_quality_t *quality_data;
+
+	if (radio_impl_ops->get_quality_info == NULL) {
+		afb_req_reply(request, NULL, "failed", "Not supported");
+		return;
+	}
+
+	quality_data = radio_impl_ops->get_quality_info();
+	ret_json=json_object_new_object();
+	if(quality_data->af_update)
+	{
+		json_object_object_add(ret_json, "af_update", json_object_new_int((int) quality_data->af_update));
+	}
+	if(quality_data->time_stamp){
+		json_object_object_add(ret_json, "timestamp", json_object_new_int((int) quality_data->time_stamp));
+	}
+	if(quality_data->rssi)
+	{
+		json_object_object_add(ret_json, "rssi", json_object_new_int((int) quality_data->rssi));
+	}
+	if(quality_data->usn)
+	{
+		json_object_object_add(ret_json, "usn", json_object_new_int((int) quality_data->usn));
+	}
+	if(quality_data->bandw)
+	{
+		json_object_object_add(ret_json, "bandwidth", json_object_new_int((int) quality_data->bandw));
+	}
+	afb_req_reply(request, ret_json, NULL, NULL);
+	return;
+}
+
+/* @brief Check alternative frequency
+ *
+ * @param afb_req_t : an afb request structure
+ *
+ */
+static void alternative_frequency(afb_req_t request)
+{
+	json_object *ret_json;
+	uint32_t alternative;
+	const char *value;
+
+	if (radio_impl_ops->set_alternative_frequency == NULL) {
+		afb_req_reply(request, NULL, "failed", "Not supported");
+		return;
+	}
+
+	value = afb_req_value(request, "value");
+	if(value) {
+		char *p;
+		radio_band_t band;
+		uint32_t min_frequency;
+		uint32_t max_frequency;
+		uint32_t step;
+
+		alternative = (uint32_t) strtoul(value, &p, 10);
+		if(alternative && *p == '\0') {
+			band = radio_impl_ops->get_band();
+			min_frequency = radio_impl_ops->get_min_frequency(band);
+			max_frequency = radio_impl_ops->get_max_frequency(band);
+			step = radio_impl_ops->get_frequency_step(band);
+			if(alternative < min_frequency ||
+			   alternative > max_frequency ||
+			   (alternative - min_frequency) % step) {
+				afb_req_reply(request, NULL, "failed", "Invalid alternative frequency");
+				return;
+			}
+			radio_impl_ops->set_alternative_frequency(alternative);
+			ret_json = json_object_new_object();
+			json_object_object_add(ret_json, "alternative", json_object_new_int((int32_t) alternative));
+			afb_req_reply(request, ret_json, NULL, NULL);
+		} else {
+			afb_req_reply(request, NULL, "failed", "Invalid alternative frequency");
+			return;
+		}
+	}
+	else {
+		afb_req_reply(request, NULL, "failed", "Invalid alternative frequency");
+		return;
+	}
+}
+
 /*
  * @brief Get (and optionally set) frequency band
  *
@@ -531,6 +622,8 @@ static const afb_verb_t verbs[]= {
 	{ .verb = "frequency",		.session = AFB_SESSION_NONE, .callback = frequency,		.info = "Get/Set frequency" },
 	{ .verb = "band",		.session = AFB_SESSION_NONE, .callback = band,			.info = "Get/Set band" },
 	{ .verb = "rds",		.session = AFB_SESSION_NONE, .callback = rds,			.info = "Get RDS information" },
+	{ .verb = "quality",	.session = AFB_SESSION_NONE, .callback = quality,   .info = "Get station quality information" },
+	{ .verb = "alternative_frequency",	.session = AFB_SESSION_NONE, .callback = alternative_frequency,   .info = "Check an alternative frequency" },
 	{ .verb = "band_supported",	.session = AFB_SESSION_NONE, .callback = band_supported,	.info = "Check band support" },
 	{ .verb = "frequency_range",	.session = AFB_SESSION_NONE, .callback = frequency_range,	.info = "Get frequency range" },
 	{ .verb = "frequency_step",	.session = AFB_SESSION_NONE, .callback = frequency_step,	.info = "Get frequency step" },
