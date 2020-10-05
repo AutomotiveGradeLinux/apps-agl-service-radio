@@ -21,12 +21,13 @@ respective audio stream.
 | scan_start         | start scanning for station                  | *Request:* {"direction": "forward" or "backward"}              |
 | scan_stop          | stop scanning for station                   |                                                                |
 | stereo_mode        | get/set stereo or mono mode                 | *Request:* {"value": "stereo" or "mono"}                       |
+| rds                | get current RDS data                        |                                                                |
 
 ## Events
 
 ### frequency Event JSON Response
 
-JSON response has a single field **frequency** which is the currently tuned frequency.
+JSON response has a single field **value** which is the currently tuned frequency.
 
 ### station_found Event JSON Response
 

@@ -120,6 +120,10 @@ static uint32_t null_get_frequency(void)
 
 static void null_set_frequency(uint32_t frequency)
 {
+	if(frequency < known_fm_band_plans[bandplan].min ||
+	   frequency > known_fm_band_plans[bandplan].max)
+		return;
+
 	current_frequency = frequency;
 
 	if(freq_callback)
