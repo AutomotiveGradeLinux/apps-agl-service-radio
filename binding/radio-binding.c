@@ -90,11 +90,26 @@ static void frequency(afb_req_t request)
 
 	if(value) {
 		char *p;
+		radio_band_t band;
+		uint32_t min_frequency;
+		uint32_t max_frequency;
+		uint32_t step;
+
 		frequency = (uint32_t) strtoul(value, &p, 10);
 		if(frequency && *p == '\0') {
+			band = radio_impl_ops->get_band();
+			min_frequency = radio_impl_ops->get_min_frequency(band);
+			max_frequency = radio_impl_ops->get_max_frequency(band);
+			step = radio_impl_ops->get_frequency_step(band);
+			if(frequency < min_frequency ||
+			   frequency > max_frequency ||
+			   (frequency - min_frequency) % step) {
+				afb_req_reply(request, NULL, "failed", "Invalid frequency");
+				return;
+			}
 			radio_impl_ops->set_frequency(frequency);
 		} else {
-			afb_req_reply(request, NULL, "failed", "Invalid scan direction");
+			afb_req_reply(request, NULL, "failed", "Invalid frequency");
 			return;
 		}
 	}
@@ -104,11 +119,12 @@ static void frequency(afb_req_t request)
 	afb_req_reply(request, ret_json, NULL, NULL);
 }
 
-/* @brief Get RDS information
-*
-* @param afb_req_t : an afb request structure
-*
-*/
+/*
+ * @brief Get RDS information
+ *
+ * @param afb_req_t : an afb request structure
+ *
+ */
 static void rds(afb_req_t request)
 {
 	json_object *ret_json;
