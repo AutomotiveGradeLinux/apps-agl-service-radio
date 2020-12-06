@@ -433,7 +433,7 @@ static void kf_scan_start(radio_scan_direction_t direction,
 	if(!initialized)
 		return;
 
-	if(scanning)
+	if(!running || scanning)
 		return;
 
 	scanning = true;
