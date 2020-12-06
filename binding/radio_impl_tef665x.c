@@ -137,9 +137,10 @@ static band_plan_t known_am_band_plans[1] = {
 
 static unsigned int fm_bandplan = 2;
 static unsigned int am_bandplan = 0;
-static bool corking = false;
-static bool present = false;
-static bool scanning = false;
+static bool corking;
+static bool present;
+static bool initialized;
+static bool scanning;
 
 // stream state
 static GstElement *pipeline;
@@ -1626,7 +1627,8 @@ static int i2c_init(const char *i2c, int state, uint32_t *i2c_file_desc)
 static void tef665x_start(void)
 {
 	int ret;
-	 if(!present)
+
+	if(!initialized)
 		return;
 
 	_debug("file_desc ", file_desc);
@@ -2078,7 +2080,7 @@ static void tef665x_stop(void)
 	GstEvent *event;
 	audio_set_mute(file_desc, 1);
 
-	 if(present && running) {
+	 if(initialized && running) {
 		// Stop pipeline
 		running = false;
 		ret = gst_element_set_state(pipeline, GST_STATE_PAUSED);
@@ -2093,13 +2095,12 @@ static void tef665x_stop(void)
 	}
 }
 
-static int tef665x_init()
+static int tef665x_probe()
 {
-	char gst_pipeline_str[GST_PIPELINE_LEN];
 	int rc;
 
-	current_am_frequency = known_am_band_plans[am_bandplan].min;
-	current_fm_frequency = known_fm_band_plans[fm_bandplan].min;
+	if(present)
+		return 0;
 
 	rc = i2c_init(I2C_DEV, _open, &file_desc);
 	if(rc < 0) {
@@ -2113,6 +2114,24 @@ static int tef665x_init()
 		AFB_ERROR("no tef665x!");
 		return -1;
 	}
+
+	present = true;
+	return 0;
+}
+
+static int tef665x_init()
+{
+	char gst_pipeline_str[GST_PIPELINE_LEN];
+	int rc;
+
+	if(!present)
+		return -1;
+
+	if(initialized)
+		return 0;
+
+	current_am_frequency = known_am_band_plans[am_bandplan].min;
+	current_fm_frequency = known_fm_band_plans[fm_bandplan].min;
 
 	current_band = BAND_AM;
 
@@ -2150,11 +2169,11 @@ static int tef665x_init()
 	rc = gst_bus_add_watch(gst_element_get_bus(pipeline), (GstBusFunc) handle_message, NULL);
 	_debug("gst_bus_add_watch   rc", rc);
 
-	present = true;
-
 	//Initialize Mutex Lock for Scan and RDS
 	pthread_mutex_init(&scan_mutex, NULL);
 	pthread_mutex_init (&RDS_Mutex, NULL);
+
+	initialized = true;
 
 	tef665x_start();
 	return 0;
@@ -2226,7 +2245,8 @@ static void tef665x_set_alternative_frequency(uint32_t frequency)
 static void tef665x_set_frequency(uint32_t frequency)
 {
 	uint32_t fd = 0;
-	if(!present)
+
+	if(!initialized)
 		return;
 
 	if(scanning)
@@ -2357,8 +2377,10 @@ static uint32_t tef665x_get_frequency_step(radio_band_t band)
 	}
 	return ret;
 }
+
 radio_impl_ops_t tef665x_impl_ops = {
 	.name = "TEF665x",
+	.probe = tef665x_probe,
 	.init = tef665x_init,
 	.start = tef665x_start,
 	.stop = tef665x_stop,

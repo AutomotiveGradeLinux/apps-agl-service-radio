@@ -57,12 +57,13 @@ static fm_band_plan_t known_fm_band_plans[5] = {
 };
 
 static unsigned int bandplan = 0;
-static bool corking = false;
-static bool present = false;
+static bool corking;
+static bool present;
+static bool initialized;
 static uint32_t current_frequency;
 static int scan_valid_snr_threshold = 128;
 static int scan_valid_rssi_threshold = 128;
-static bool scanning = false;
+static bool scanning;
 
 // stream state
 static GstElement *pipeline;
@@ -104,16 +105,9 @@ static void *gstreamer_loop_thread(void *ptr)
 	return NULL;
 }
 
-static int kf_init(void)
+static int kf_probe(void)
 {
-	GKeyFile* conf_file;
-	int conf_file_present = 0;
 	struct stat statbuf;
-	char *value_str;
-	char cmd[SI_CTL_CMDLINE_MAXLEN];
-	int rc;
-	char gst_pipeline_str[GST_PIPELINE_LEN];
-	pthread_t thread_id;
 
 	if(present)
 		return 0;
@@ -126,6 +120,26 @@ static int kf_init(void)
 	if(stat(SI_CTL, &statbuf) != 0)
 		return -1;
 
+	present = true;
+	return 0;
+}
+
+static int kf_init(void)
+{
+	GKeyFile* conf_file;
+	bool conf_file_present = false;
+	char *value_str;
+	char cmd[SI_CTL_CMDLINE_MAXLEN];
+	int rc;
+	char gst_pipeline_str[GST_PIPELINE_LEN];
+	pthread_t thread_id;
+
+	if(!present)
+		return -1;
+
+	if(initialized)
+		return 0;
+
 	// Load settings from configuration file if it exists
 	conf_file = g_key_file_new();
 	if(conf_file &&
@@ -135,7 +149,7 @@ static int kf_init(void)
 				     NULL,
 				     G_KEY_FILE_KEEP_COMMENTS,
 				     NULL) == TRUE) {
-		conf_file_present = 1;
+		conf_file_present = true;
 
 		// Set band plan if it is specified
 		value_str = g_key_file_get_string(conf_file,
@@ -229,7 +243,7 @@ static int kf_init(void)
 	if(rc != 0)
 		return rc;
 
-	present = true;
+	initialized = true;
 	return 0;
 }
 
@@ -247,7 +261,7 @@ static void kf_set_frequency(uint32_t frequency)
 	char cmd[SI_CTL_CMDLINE_MAXLEN];
 	int rc;
 
-	if(!present)
+	if(!initialized)
 		return;
 
 	if(scanning)
@@ -363,7 +377,7 @@ static bool kf_get_corking_state(void)
 
 static void kf_start(void)
 {
-	if(!present)
+	if(!initialized)
 		return;
 
 	if(!running || corking) {
@@ -378,7 +392,7 @@ static void kf_stop(void)
 {
 	GstEvent *event;
 
-	if(present && running) {
+	if(initialized && running) {
 		// Stop pipeline
 		running = false;
 
@@ -416,7 +430,7 @@ static void kf_scan_start(radio_scan_direction_t direction,
 	uint32_t new_frequency = 0;
 	FILE *fp;
 
-	if(!present)
+	if(!initialized)
 		return;
 
 	if(scanning)
@@ -487,6 +501,7 @@ static void kf_set_stereo_mode(radio_stereo_mode_t mode)
 
 radio_impl_ops_t kf_impl_ops = {
 	.name = "Kingfisher Si4689",
+	.probe = kf_probe,
 	.init = kf_init,
 	.set_output = kf_set_output,
 	.get_frequency = kf_get_frequency,

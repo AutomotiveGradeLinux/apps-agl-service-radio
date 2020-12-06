@@ -52,6 +52,7 @@ static fm_band_plan_t known_fm_band_plans[5] = {
 
 static unsigned int bandplan;
 static bool present;
+static bool initialized;
 static bool active;
 static bool scanning;
 static uint32_t current_frequency;
@@ -60,7 +61,12 @@ static void *freq_callback_data;
 
 static uint32_t null_get_min_frequency(radio_band_t band);
 static void null_set_frequency(uint32_t frequency);
-//static void null_scan_stop(void);
+
+static int null_probe(void)
+{
+	present = true;
+	return 0;
+}
 
 static int null_init(void)
 {
@@ -69,7 +75,10 @@ static int null_init(void)
 	char *rootdir;
 	char *helper_path;
 
-	if(present)
+	if(!present)
+		return -1;
+
+	if(initialized)
 		return 0;
 
 	// Load settings from configuration file if it exists
@@ -103,7 +112,7 @@ static int null_init(void)
 	// Start off with minimum bandplan frequency
 	current_frequency = null_get_min_frequency(BAND_FM);
 
-	present = true;
+	initialized = true;
 	null_set_frequency(current_frequency);
 
 	return 0;
@@ -184,7 +193,7 @@ static uint32_t null_get_frequency_step(radio_band_t band)
 
 static void null_start(void)
 {
-	if(!present)
+	if(!initialized)
 		return;
 
 	if(active)
@@ -195,7 +204,7 @@ static void null_start(void)
 
 static void null_stop(void)
 {
-	if(!present)
+	if(!initialized)
 		return;
 
 	if (!active)
@@ -251,6 +260,7 @@ static void null_set_stereo_mode(radio_stereo_mode_t mode)
 
 radio_impl_ops_t null_impl_ops = {
 	.name = "null/mock radio",
+	.probe = null_probe,
 	.init = null_init,
 	.set_output = null_set_output,
 	.get_frequency = null_get_frequency,
