@@ -678,35 +678,40 @@ static void onevent(afb_api_t api, const char *event, struct json_object *object
 
 static int init(afb_api_t api)
 {
-	// Look for RTL-SDR USB adapter
+	// Probe for radio backends
 	radio_impl_ops = &rtlsdr_impl_ops;
-	int rc = radio_impl_ops->init();
+	int rc = radio_impl_ops->probe();
 	if(rc != 0) {
 		// Look for Kingfisher Si4689
 		radio_impl_ops = &kf_impl_ops;
-		rc = radio_impl_ops->init();
+		rc = radio_impl_ops->probe();
 	}
 	if(rc != 0) {
 		radio_impl_ops = &tef665x_impl_ops;
-		rc = radio_impl_ops->init();
+		rc = radio_impl_ops->probe();
 	}
 	if (rc != 0) {
 		radio_impl_ops = &null_impl_ops;
-		rc = radio_impl_ops->init();
+		rc = radio_impl_ops->probe();
 	}
 	if (rc != 0) {
-		// We don't expect the null implementation to fail init, but just in case...
+		// We don't expect the null implementation to fail probe, but just in case...
 		AFB_API_ERROR(afbBindingV3root, "No radio device found, exiting");
-	}
-	if(rc == 0) {
-		AFB_API_NOTICE(afbBindingV3root, "%s found\n", radio_impl_ops->name);
-		radio_impl_ops->set_frequency_callback(freq_callback, NULL);
-		if(radio_impl_ops->set_rds_callback)
-		{
-			radio_impl_ops->set_rds_callback(rds_callback);
-		}
-	} else {
 		return rc;
+	}
+	// Try to initialize detected backend
+	rc = radio_impl_ops->init();
+	if(rc < 0) {
+		AFB_API_ERROR(afbBindingV3root,
+			      "%s initialization failed\n",
+			      radio_impl_ops->name);
+		return rc;
+	}
+	AFB_API_NOTICE(afbBindingV3root, "%s found\n", radio_impl_ops->name);
+	radio_impl_ops->set_frequency_callback(freq_callback, NULL);
+	radio_impl_ops->set_frequency_callback(freq_callback, NULL);
+	if(radio_impl_ops->set_rds_callback) {
+		radio_impl_ops->set_rds_callback(rds_callback);
 	}
 
 	rc = afb_daemon_require_api("signal-composer", 1);

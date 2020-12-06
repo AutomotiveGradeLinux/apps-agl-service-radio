@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017,2018 Konsulko Group
+ * Copyright (C) 2017,2018,2020 Konsulko Group
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ static int helper_in;
 static int helper_out;
 static pthread_mutex_t helper_mutex = PTHREAD_MUTEX_INITIALIZER;
 static bool present;
+static bool initialized;
 static bool active;
 static bool scanning;
 static uint32_t current_frequency;
@@ -128,14 +129,87 @@ static pid_t popen2(char *command, int *in_fd, int *out_fd)
 	return pid;
 }
 
-static int rtlsdr_init(void)
+static int rtlsdr_probe(void)
 {
-	GKeyFile *conf_file;
-	char *value_str;
 	char *rootdir;
 	char *helper_path;
 
 	if(present)
+		return 0;
+
+	rootdir = getenv("AFM_APP_INSTALL_DIR");
+	if(!rootdir)
+		return -1;
+
+	// Run helper to detect adapter
+	helper_path = malloc(HELPER_MAX);
+	if(!helper_path)
+		return -ENOMEM;
+	if(snprintf(helper_path, HELPER_MAX, "%s/bin/%s --detect", rootdir, HELPER_NAME) == HELPER_MAX) {
+		AFB_API_ERROR(afbBindingV3root, "Could not create command for \"%s --detect\"", HELPER_NAME);
+		return -EINVAL;
+	}
+	if(system(helper_path) != 0) {
+		free(helper_path);
+		return -1;
+	}
+
+	present = true;
+	return 0;
+}
+
+static int rtlsdr_start_helper(void)
+{
+	char *rootdir;
+	char *helper_path;
+	static bool helper_started = false;
+
+	if(!present || initialized)
+		return -1;
+
+	if(helper_started)
+		return 0;
+
+	rootdir = getenv("AFM_APP_INSTALL_DIR");
+	if(!rootdir)
+		return -1;
+
+	if(helper_output) {
+		// Indicate desired output to helper
+		AFB_API_INFO(afbBindingV3root, "Setting RADIO_OUTPUT=%s", helper_output);
+		setenv("RADIO_OUTPUT", helper_output, 1);
+	}
+
+	// Run helper
+	helper_path = malloc(HELPER_MAX);
+	if(!helper_path)
+		return -ENOMEM;
+	if(snprintf(helper_path, PATH_MAX, "%s/bin/%s", rootdir, HELPER_NAME) == PATH_MAX) {
+		AFB_API_ERROR(afbBindingV3root, "Could not create path to %s", HELPER_NAME);
+		return -EINVAL;
+	}
+	helper_pid = popen2(helper_path, &helper_out, &helper_in);
+	if(helper_pid < 0) {
+		AFB_API_ERROR(afbBindingV3root, "Could not run %s!", HELPER_NAME);
+		return -1;
+	}
+	AFB_API_DEBUG(afbBindingV3root, "%s started", HELPER_NAME);
+	helper_started = true;
+	free(helper_path);
+
+	return 0;
+}
+
+static int rtlsdr_init(void)
+{
+	GKeyFile *conf_file;
+	char *value_str;
+	int rc;
+
+	if(!present)
+		return -1;
+
+	if(initialized)
 		return 0;
 
 	// Load settings from configuration file if it exists
@@ -168,25 +242,12 @@ static int rtlsdr_init(void)
 
 	// Start off with minimum bandplan frequency
 	current_frequency = rtlsdr_get_min_frequency(BAND_FM);
-
-	rootdir = getenv("AFM_APP_INSTALL_DIR");
-	if(!rootdir)
-		return -1;
-
-	// Run helper to detect adapter
-	helper_path = malloc(HELPER_MAX);
-	if(!helper_path)
-		return -ENOMEM;
-	if(snprintf(helper_path, HELPER_MAX, "%s/bin/%s --detect", rootdir, HELPER_NAME) == HELPER_MAX) {
-		AFB_API_ERROR(afbBindingV3root, "Could not create command for \"%s --detect\"", HELPER_NAME);
-		return -EINVAL;
-	}
-	if(system(helper_path) != 0) {
-		free(helper_path);
-		return -1;
+	rc = rtlsdr_start_helper();
+	if(rc != 0) {
+		return rc;
 	}
 
-	present = true;
+	initialized = true;
 	rtlsdr_set_frequency(current_frequency);
 
 	return 0;
@@ -212,7 +273,7 @@ static void rtlsdr_set_frequency(uint32_t frequency)
 	ssize_t rc;
 	uint32_t n;
 
-	if(!present)
+	if(!initialized)
 		return;
 
 	if(frequency < known_fm_band_plans[bandplan].min ||
@@ -298,61 +359,16 @@ static uint32_t rtlsdr_get_frequency_step(radio_band_t band)
 	return ret;
 }
 
-static int rtlsdr_start_helper(void)
-{
-	char *rootdir;
-	char *helper_path;
-	static bool helper_started = false;
-
-	if(!present)
-		return -1;
-
-	if(helper_started)
-		return 0;
-
-	rootdir = getenv("AFM_APP_INSTALL_DIR");
-	if(!rootdir)
-		return -1;
-
-	if(helper_output) {
-		// Indicate desired output to helper
-		AFB_API_INFO(afbBindingV3root, "Setting RADIO_OUTPUT=%s", helper_output);
-		setenv("RADIO_OUTPUT", helper_output, 1);
-	}
-
-	// Run helper
-	helper_path = malloc(HELPER_MAX);
-	if(!helper_path)
-		return -ENOMEM;
-	if(snprintf(helper_path, PATH_MAX, "%s/bin/%s", rootdir, HELPER_NAME) == PATH_MAX) {
-		AFB_API_ERROR(afbBindingV3root, "Could not create path to %s", HELPER_NAME);
-		return -EINVAL;
-	}
-	helper_pid = popen2(helper_path, &helper_out, &helper_in);
-	if(helper_pid < 0) {
-		AFB_API_ERROR(afbBindingV3root, "Could not run %s!", HELPER_NAME);
-		return -1;
-	}
-	AFB_API_DEBUG(afbBindingV3root, "%s started", HELPER_NAME);
-	helper_started = true;
-	free(helper_path);
-
-	return 0;
-}
-
 static void rtlsdr_start(void)
 {
-	if(!present)
+	ssize_t rc;
+	char cmd[HELPER_CMD_MAXLEN];
+
+	if(!initialized)
 		return;
 
 	if(active)
 		return;
-
-	if(rtlsdr_start_helper() < 0)
-		return;
-
-	ssize_t rc;
-	char cmd[HELPER_CMD_MAXLEN];
 
 	snprintf(cmd, sizeof(cmd), "START\n");
 	pthread_mutex_lock(&helper_mutex);
@@ -368,7 +384,7 @@ static void rtlsdr_start(void)
 static void rtlsdr_stop(void)
 {
 	ssize_t rc;
-	if(!present)
+	if(!initialized)
 		return;
 
 	if (!active)
@@ -470,6 +486,7 @@ static void rtlsdr_set_stereo_mode(radio_stereo_mode_t mode)
 
 radio_impl_ops_t rtlsdr_impl_ops = {
 	.name = "RTL-SDR USB adapter",
+	.probe = rtlsdr_probe,
 	.init = rtlsdr_init,
 	.set_output = rtlsdr_set_output,
 	.get_frequency = rtlsdr_get_frequency,

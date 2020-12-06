@@ -71,6 +71,9 @@ typedef struct
 typedef struct {
 	char *name;
 
+	int (*probe)(void);
+
+	/* NOTE: init should return -1 if called before probe has been called and returned success */
 	int (*init)(void);
 
 	void (*set_output)(const char *output);
