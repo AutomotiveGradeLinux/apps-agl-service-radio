@@ -65,7 +65,7 @@ int radio_output_open()
 	queue = gst_element_factory_make("queue", "queue");
 	convert = gst_element_factory_make("audioconvert", "convert");
 	resample = gst_element_factory_make("audioresample", "resample");
-	sink = gst_element_factory_make("pwaudiosink", "sink");
+	sink = gst_element_factory_make("pipewiresink", "sink");
 	if(!(pipeline && appsrc && queue && convert && resample && sink)) {
 		fprintf(stderr, "pipeline element construction failed!\n");
 	}

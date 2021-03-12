@@ -219,7 +219,7 @@ static int kf_init(void)
 	// Use PipeWire output
 	rc = snprintf(gst_pipeline_str,
 		      GST_PIPELINE_LEN,
-		      "alsasrc device=hw:radio ! queue ! audioconvert ! audioresample ! pwaudiosink stream-properties=\"p,media.role=Multimedia\"");
+		      "alsasrc device=hw:radio ! queue ! audioconvert ! audioresample ! pipewiresink stream-properties=\"p,media.role=Multimedia\"");
 	if(rc >= GST_PIPELINE_LEN) {
 		AFB_API_ERROR(afbBindingV3root, "pipeline string too long");
 		return -1;
@@ -400,7 +400,7 @@ static void kf_stop(void)
 		// NOTE: Using NULL here instead of READY, as it seems to trigger
 		//       some odd behavior in the pipeline; alsasrc does not seem to
 		//       stop, and things get hung up on restart as there are a bunch
-		//       of "old" samples that seemingly confuse pwaudiosink.  Going
+		//       of "old" samples that seemingly confuse pipewiresink.  Going
 		//       to NULL state seems to tear down things enough to avoid
 		//       whatever happens.
 		gst_element_set_state(pipeline, GST_STATE_NULL);

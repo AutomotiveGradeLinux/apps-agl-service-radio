@@ -2148,7 +2148,7 @@ static int tef665x_init()
 	rc = snprintf(gst_pipeline_str,
 		      	GST_PIPELINE_LEN,
 				 "alsasrc device=hw:1,0 ! audioconvert ! audioresample ! audio/x-raw, rate=48000, channels=2 \
-				 ! pwaudiosink stream-properties=\"p,media.role=Multimedia\" latency-time=35000");
+				 ! pipewiresink stream-properties=\"p,media.role=Multimedia\"");
 
 	if(rc >= GST_PIPELINE_LEN) {
 		AFB_ERROR("pipeline string too long");
