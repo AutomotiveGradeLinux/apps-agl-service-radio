@@ -219,7 +219,9 @@ static int kf_init(void)
 	// Use PipeWire output
 	rc = snprintf(gst_pipeline_str,
 		      GST_PIPELINE_LEN,
-		      "alsasrc device=hw:radio ! queue ! audioconvert ! audioresample ! pipewiresink stream-properties=\"p,media.role=Multimedia\"");
+		      "pipewiresrc stream-properties=\"p,node.target=alsa:pcm:radio:0:capture\" ! "
+		      "audio/x-raw,format=F32LE,channels=2 ! "
+		      "pipewiresink stream-properties=\"p,media.role=Multimedia\"");
 	if(rc >= GST_PIPELINE_LEN) {
 		AFB_API_ERROR(afbBindingV3root, "pipeline string too long");
 		return -1;
