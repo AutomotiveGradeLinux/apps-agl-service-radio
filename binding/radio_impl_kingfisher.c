@@ -112,7 +112,7 @@ static int kf_probe(void)
 	if(present)
 		return 0;
 
-	// Check for Kingfisher SI486x devicetree node
+	// Check for Kingfisher SI468x devicetree node
 	if(stat(SI_NODE, &statbuf) != 0)
 		return -1;
 
