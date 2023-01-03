@@ -19,12 +19,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include <glib.h>
-#include <afb/afb-binding.h>
 
 #include "radio_impl.h"
 
@@ -131,22 +131,15 @@ static pid_t popen2(char *command, int *in_fd, int *out_fd)
 
 static int rtlsdr_probe(void)
 {
-	char *rootdir;
+	const char *bindir = "/usr/sbin";
 	char *helper_path;
-
-	if(present)
-		return 0;
-
-	rootdir = getenv("AFM_APP_INSTALL_DIR");
-	if(!rootdir)
-		return -1;
 
 	// Run helper to detect adapter
 	helper_path = malloc(HELPER_MAX);
 	if(!helper_path)
 		return -ENOMEM;
-	if(snprintf(helper_path, HELPER_MAX, "%s/bin/%s --detect", rootdir, HELPER_NAME) == HELPER_MAX) {
-		AFB_API_ERROR(afbBindingV3root, "Could not create command for \"%s --detect\"", HELPER_NAME);
+	if(snprintf(helper_path, HELPER_MAX, "%s/%s --detect", bindir, HELPER_NAME) == HELPER_MAX) {
+		fprintf(stderr, "Could not create command for \"%s --detect\"", HELPER_NAME);
 		return -EINVAL;
 	}
 	if(system(helper_path) != 0) {
@@ -160,7 +153,7 @@ static int rtlsdr_probe(void)
 
 static int rtlsdr_start_helper(void)
 {
-	char *rootdir;
+	const char *bindir = "/usr/sbin";
 	char *helper_path;
 	static bool helper_started = false;
 
@@ -170,13 +163,9 @@ static int rtlsdr_start_helper(void)
 	if(helper_started)
 		return 0;
 
-	rootdir = getenv("AFM_APP_INSTALL_DIR");
-	if(!rootdir)
-		return -1;
-
 	if(helper_output) {
 		// Indicate desired output to helper
-		AFB_API_INFO(afbBindingV3root, "Setting RADIO_OUTPUT=%s", helper_output);
+		printf("Setting RADIO_OUTPUT=%s", helper_output);
 		setenv("RADIO_OUTPUT", helper_output, 1);
 	}
 
@@ -184,16 +173,16 @@ static int rtlsdr_start_helper(void)
 	helper_path = malloc(HELPER_MAX);
 	if(!helper_path)
 		return -ENOMEM;
-	if(snprintf(helper_path, PATH_MAX, "%s/bin/%s", rootdir, HELPER_NAME) == PATH_MAX) {
-		AFB_API_ERROR(afbBindingV3root, "Could not create path to %s", HELPER_NAME);
+	if(snprintf(helper_path, PATH_MAX, "%s/%s", bindir, HELPER_NAME) == PATH_MAX) {
+		fprintf(stderr, "Could not create path to %s", HELPER_NAME);
 		return -EINVAL;
 	}
 	helper_pid = popen2(helper_path, &helper_out, &helper_in);
 	if(helper_pid < 0) {
-		AFB_API_ERROR(afbBindingV3root, "Could not run %s!", HELPER_NAME);
+		fprintf(stderr, "Could not run %s!", HELPER_NAME);
 		return -1;
 	}
-	AFB_API_DEBUG(afbBindingV3root, "%s started", HELPER_NAME);
+	printf("%s started", HELPER_NAME);
 	helper_started = true;
 	free(helper_path);
 
@@ -241,7 +230,7 @@ static int rtlsdr_init(void)
 	}
 
 	// Start off with minimum bandplan frequency
-	current_frequency = rtlsdr_get_min_frequency(BAND_FM);
+	current_frequency = rtlsdr_get_min_frequency(RADIO_BAND_FM);
 	rc = rtlsdr_start_helper();
 	if(rc != 0) {
 		return rc;
@@ -317,7 +306,7 @@ static void rtlsdr_set_frequency_callback(radio_freq_callback_t callback,
 static radio_band_t rtlsdr_get_band(void)
 {
 	// We only support FM
-	return BAND_FM;
+	return RADIO_BAND_FM;
 }
 
 static void rtlsdr_set_band(radio_band_t band)
@@ -327,7 +316,7 @@ static void rtlsdr_set_band(radio_band_t band)
 
 static int rtlsdr_band_supported(radio_band_t band)
 {
-	if(band == BAND_FM)
+	if(band == RADIO_BAND_FM)
 		return 1;
 	return 0;
 }
@@ -347,10 +336,10 @@ static uint32_t rtlsdr_get_frequency_step(radio_band_t band)
 	uint32_t ret = 0;
 
 	switch (band) {
-	case BAND_AM:
+	case RADIO_BAND_AM:
 		ret = 1000; // 1 kHz
 		break;
-	case BAND_FM:
+	case RADIO_BAND_FM:
 		ret = known_fm_band_plans[bandplan].step;
 		break;
 	default:
@@ -375,7 +364,7 @@ static void rtlsdr_start(void)
 	rc = write(helper_in, cmd, strlen(cmd));
 	pthread_mutex_unlock(&helper_mutex);
 	if (rc < 0) {
-		AFB_API_ERROR(afbBindingV3root, "Failed to ask \"%s\" to start", HELPER_NAME);
+		fprintf(stderr, "Failed to ask \"%s\" to start", HELPER_NAME);
 		return;
 	}
 	active = true;
@@ -397,7 +386,7 @@ static void rtlsdr_stop(void)
 	rc = write(helper_in, cmd, strlen(cmd));
 	pthread_mutex_unlock(&helper_mutex);
 	if (rc < 0) {
-		AFB_API_ERROR(afbBindingV3root, "Failed to ask \"%s\" to stop", HELPER_NAME);
+		fprintf(stderr, "Failed to ask \"%s\" to stop", HELPER_NAME);
 		return;
 	}
 	active = false;
@@ -419,7 +408,7 @@ static void rtlsdr_scan_start(radio_scan_direction_t direction,
 	scanning = true;
 	snprintf(cmd,
 			 sizeof(cmd),
-			 "S=%s\n", direction == SCAN_FORWARD ? "UP" : "DOWN");
+			 "S=%s\n", direction == RADIO_SCAN_FORWARD ? "UP" : "DOWN");
 	pthread_mutex_lock(&helper_mutex);
 	if(!scanning) {
 		pthread_mutex_unlock(&helper_mutex);
@@ -470,13 +459,13 @@ static void rtlsdr_scan_stop(void)
 	rc = write(helper_in, cmd, strlen(cmd));
 	pthread_mutex_unlock(&helper_mutex);
 	if (rc < 0)
-		AFB_API_ERROR(afbBindingV3root, "Failed to ask \"%s\" to stop scan", HELPER_NAME);
+		fprintf(stderr, "Failed to ask \"%s\" to stop scan", HELPER_NAME);
 }
 
 static radio_stereo_mode_t rtlsdr_get_stereo_mode(void)
 {
 	// We only support stereo
-	return STEREO;
+	return RADIO_MODE_STEREO;
 }
 
 static void rtlsdr_set_stereo_mode(radio_stereo_mode_t mode)

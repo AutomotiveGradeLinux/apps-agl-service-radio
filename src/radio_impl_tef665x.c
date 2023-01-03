@@ -36,15 +36,11 @@
 #include <error.h>
 #include <gst/gst.h>
 #include <time.h>
-//#include <json-c/json.h>
-//#include <gst/gst.h>
-
-#include <afb/afb-binding.h>
-
+#include <gst/gst.h>
 #include <pthread.h>
+
 #include "radio_impl.h"
 #include "tef665x.h"
-
 
 #define I2C_ADDRESS 0x64
 #define I2C_DEV "/dev/i2c-3"
@@ -242,7 +238,7 @@ static int tef665x_get_cmd(int i2c_file_desc, TEF665x_MODULE module, uint8_t cmd
 	temp = (ret == len) ? 1 : 0;
 	_debug("return value", temp);
 	if(temp==0)
-		AFB_ERROR("Error Number: %d: %s",errno,strerror(errno));
+		fprintf(stderr, "Error Number: %d: %s",errno,strerror(errno));
 	return temp;
 }
 
@@ -970,20 +966,20 @@ void Extract_Alt_Freqs(uint8_t* buf,rds_data_t *Rds_STU)
 			}
 			else if(buf[Buffer_Index]==205)
 			{
-				AFB_ERROR("Filler Code");
+				fprintf(stderr, "Filler Code");
 			}
 			else if(buf[Buffer_Index]==224)
 			{
-				AFB_ERROR("No AF Exists");
+				fprintf(stderr, "No AF Exists");
 			}
 			else if(buf[Buffer_Index]==250)
 			{
-				AFB_ERROR("An LF/MF Frequency Follows");
+				fprintf(stderr, "An LF/MF Frequency Follows");
 				AlterFreqOffset=144000;
 			}
 			else if(buf[Buffer_Index]>250)
 			{
-				AFB_WARNING("Alternative Frequency Not Assigned");
+				printf("Alternative Frequency Not Assigned");
 			}
 		}
 		else if(buf[Buffer_Index]>0)
@@ -1014,12 +1010,12 @@ void Extract_Alt_Freqs(uint8_t* buf,rds_data_t *Rds_STU)
 			}
 			else
 			{
-				AFB_WARNING("Alternative Frequency is not defined");
+				printf("Alternative Frequency is not defined");
 			}
 		}
 		else
 		{
-			AFB_ERROR("Alternative Frequency- Not to be used");
+			fprintf(stderr, "Alternative Frequency- Not to be used");
 		}		
 	}
 }
@@ -1039,13 +1035,13 @@ void Check_RDS_Error(uint8_t Errors[])
 {
 	for (int i=0;i<4;i++){
 		if(Errors[i]==1){
-			AFB_WARNING("RDS Block %d Reception Error; small error; possible 1 bit reception error detected; data is corrected",i+1);
+			printf("RDS Block %d Reception Error; small error; possible 1 bit reception error detected; data is corrected",i+1);
 		}
 		else if(Errors[i]==2){
-			AFB_WARNING("RDS Block %d Reception Error; large error; theoretical correctable error detected; data is corrected",i+1);
+			printf("RDS Block %d Reception Error; large error; theoretical correctable error detected; data is corrected",i+1);
 		}
 		else if(Errors[i]==3){
-			AFB_ERROR("RDS Block %d Reception Error; uncorrectable error; no data correction possible",i+1);
+			fprintf(stderr, "RDS Block %d Reception Error; uncorrectable error; no data correction possible",i+1);
 		}
 	}
 }
@@ -1089,7 +1085,7 @@ void *Process_RDS_Words(void* rds_words){
 		Rds_STU->PICode=Convert8bto16b(&raw_data[2]);
 	}
 	else{
-		AFB_ERROR("Error_A=%d",Error_A);
+		fprintf(stderr, "Error_A=%d",Error_A);
 	}
 
 	bool GTypeVer=GType0;
@@ -1311,17 +1307,17 @@ void *Process_RDS_Words(void* rds_words){
 		//Group Type 4B
 		else
 		{
-			AFB_WARNING("Groupe Type 4B are not supported yet");
+			printf("Groupe Type 4B are not supported yet");
 		}
 	}
 	case 8:
 	{
-		AFB_WARNING("Groupe Type 8A and 8B are not supported yet");
+		printf("Groupe Type 8A and 8B are not supported yet");
 		
 	}
 	case 10:
 	{
-		AFB_WARNING("Groupe Type 10A and 10B are not supported yet");
+		printf("Groupe Type 10A and 10B are not supported yet");
 		/*
 		if(Error_B == 0){
 			uint8_t pos = 0;
@@ -1342,18 +1338,18 @@ void *Process_RDS_Words(void* rds_words){
 	}
 	break;
 	default:
-		AFB_ERROR("Unsupported Group %d",GType);
+		fprintf(stderr, "Unsupported Group %d",GType);
 		break;
 	}
 
 	if(!DataAvailable)
 	{
-		AFB_ERROR("RDS Data is not available");
+		fprintf(stderr, "RDS Data is not available");
 	}
 
 	if(DataLoss)
 	{
-		AFB_ERROR("previous data was not read, replaced by newer data");
+		fprintf(stderr, "previous data was not read, replaced by newer data");
 	}
 
 	if(GroupType == 0)
@@ -1367,12 +1363,12 @@ void *Process_RDS_Words(void* rds_words){
 
 	if(!SyncStatus)
 	{
-		AFB_ERROR(" RDS decoder not synchronized; no RDS data found");
+		fprintf(stderr, " RDS decoder not synchronized; no RDS data found");
 	}
 
 	if(GroupType != GTypeVer)
 	{
-		AFB_ERROR("Version is not Correct?");
+		fprintf(stderr, "Version is not Correct?");
 	}
 }
 
@@ -1509,10 +1505,10 @@ static int tef665x_wait_active(uint32_t i2c_file_desc)
 	//usleep(50000);
 	if(SET_SUCCESS == appl_get_operation_status(i2c_file_desc, &status))
 	{
-		AFB_INFO("got status", 1);
+		printf("got status", 1);
 		if((status != eDevTEF665x_Boot_state) && (status != eDevTEF665x_Idle_state))
 		{
-			AFB_INFO("active status", 1);
+			printf("active status", 1);
 
 			if(SET_SUCCESS == tef665x_para_load(i2c_file_desc))
 			{
@@ -1524,7 +1520,7 @@ static int tef665x_wait_active(uint32_t i2c_file_desc)
 				return 0;
 			}
 
-			if(current_band == BAND_FM){
+			if(current_band == RADIO_BAND_FM){
 				FM_tune_to(i2c_file_desc, eAR_TuningAction_Preset, current_fm_frequency / 10000);// tune to min
 			} else {
 				AM_tune_to(i2c_file_desc, eAR_TuningAction_Preset, current_am_frequency / 1000);// tune to min
@@ -1733,12 +1729,12 @@ void *Get_RDS_Packets(rds_data_t *StuRDS){
 		}
 		
 		else{
-			AFB_ERROR("RDS is Not Valid0");
+			fprintf(stderr, "RDS is Not Valid0");
 		}
 	}
 
 	else{
-		AFB_ERROR("RDS is Not Valid1");
+		fprintf(stderr, "RDS is Not Valid1");
 	}
 	i2c_init(I2C_DEV, _close, &fd);
 }
@@ -1784,13 +1780,13 @@ void *scan_frequencies(scan_data_t* scan_data){
 	uint32_t new_freq  = 0;
 	uint32_t init_freq = 0;
 
-	init_freq = current_band == BAND_FM ? current_fm_frequency : current_am_frequency;
+	init_freq = current_band == RADIO_BAND_FM ? current_fm_frequency : current_am_frequency;
 
 	//First Mute Current Frequency
 	tef665x_search_frequency(init_freq);
 
 	//freq_step will be negative if direction was backward and positive if direction was forward
-	uint32_t freq_step = tef665x_get_frequency_step(current_band) * (scan_data->direction==SCAN_FORWARD?1:-1);
+	uint32_t freq_step = tef665x_get_frequency_step(current_band) * (scan_data->direction==RADIO_SCAN_FORWARD?1:-1);
 
 	//Continue loop until reaching the initial frequency
 	while(init_freq != new_freq)
@@ -1804,7 +1800,7 @@ void *scan_frequencies(scan_data_t* scan_data){
 			break;
 		}
 
-		if(current_band==BAND_FM)
+		if(current_band==RADIO_BAND_FM)
 		{
 			new_freq = current_fm_frequency + freq_step;
 
@@ -1881,7 +1877,7 @@ static char *tef665x_get_rds_info(void)
  	//If Getting RDS Result wasn't already started, Start it now
 	if(pthread_mutex_trylock(&RDS_Mutex) == 0)
 	{
-		AFB_DEBUG("Create the thread.");
+		//AFB_DEBUG("Create the thread.");
 		pthread_create(&rds_thread, NULL,Get_RDS_Packets ,(void *) (&RDS_Message));
 	}
 	
@@ -1955,7 +1951,7 @@ static station_quality_t *tef665x_get_quality_info(void)
     uint8_t	 data[14];
 
     int ret = i2c_init(I2C_DEV, _open, &i2c_file_desc);
-    if(current_band==BAND_FM)
+    if(current_band==RADIO_BAND_FM)
 	{
 		ret = tef665x_get_cmd(i2c_file_desc,  TEF665X_MODULE_FM,
 		TEF665X_Cmd_Get_Quality_Data,
@@ -1982,7 +1978,7 @@ static station_quality_t *tef665x_get_quality_info(void)
  * @brief Start Scan
  *
  * @param radio_scan_direction_t direction which is the scan direction and can be
- *                               SCAN_FORWARD or SCAN_BACKWARD
+ *                               RADIO_SCAN_FORWARD or RADIO_SCAN_BACKWARD
  * @param radio_scan_callback_t  callback which is the callback for sending result of search to
  *                               station_found ecent subscribers
  * @return void
@@ -2006,12 +2002,12 @@ static void tef665x_scan_start(radio_scan_direction_t direction,
 	Clear_RDS_Data(&RDS_Message);
 	usleep(10000);
 
-	AFB_DEBUG("check Mutex Condition");
+	//AFB_DEBUG("check Mutex Condition");
 	
 	//check if is there any activated search
 	if(pthread_mutex_trylock(&scan_mutex)==0&&!scanning)
 	{
-		AFB_DEBUG("Start Scanning...");
+		//AFB_DEBUG("Start Scanning...");
 		
 		inputs=malloc(sizeof(*inputs));
 		if(!inputs)
@@ -2038,7 +2034,7 @@ static void tef665x_scan_stop(void)
 	while(scanning)
 	{
 		usleep(100);
-		AFB_DEBUG(" Wait for unlocking scan Thread");
+		//AFB_DEBUG(" Wait for unlocking scan Thread");
 	}
 }
 
@@ -2060,7 +2056,7 @@ radio_stereo_mode_t tef665x_get_stereo_mode(void)
 	uint32_t i2c_file_desc = 0;
 	int ret = i2c_init(I2C_DEV, _open, &i2c_file_desc);
 	uint8_t data[2];
-	if(current_band==BAND_FM){
+	if(current_band==RADIO_BAND_FM){
 		ret = tef665x_get_cmd(i2c_file_desc,  TEF665X_MODULE_FM,
 		TEF665X_Cmd_Get_Signal_Status,
 		data, sizeof(data));
@@ -2071,7 +2067,7 @@ radio_stereo_mode_t tef665x_get_stereo_mode(void)
 		data, sizeof(data));
 	}
 	i2c_init(I2C_DEV, _close, &i2c_file_desc);
-	return data[0]>>7 ==1 ? STEREO:MONO;
+	return data[0]>>7 ==1 ? RADIO_MODE_STEREO:RADIO_MODE_MONO;
 }
 
 static void tef665x_stop(void)
@@ -2104,14 +2100,14 @@ static int tef665x_probe()
 
 	rc = i2c_init(I2C_DEV, _open, &file_desc);
 	if(rc < 0) {
-		AFB_NOTICE("tef665x not present");
+		fprintf(stderr, "tef665x not present");
 		return -1;
 	}
 	_debug("file_desc= ", file_desc);
 
 	rc = appl_get_identification(file_desc);
 	if(rc != 1){
-		AFB_ERROR("no tef665x!");
+		fprintf(stderr, "no tef665x!");
 		return -1;
 	}
 
@@ -2133,7 +2129,7 @@ static int tef665x_init()
 	current_am_frequency = known_am_band_plans[am_bandplan].min;
 	current_fm_frequency = known_fm_band_plans[fm_bandplan].min;
 
-	current_band = BAND_AM;
+	current_band = RADIO_BAND_AM;
 
 	radio_powerSwitch(file_desc, 1);
 
@@ -2151,14 +2147,14 @@ static int tef665x_init()
 				 ! pipewiresink stream-properties=\"p,media.role=Multimedia\"");
 
 	if(rc >= GST_PIPELINE_LEN) {
-		AFB_ERROR("pipeline string too long");
+		fprintf(stderr, "pipeline string too long");
 		return -1;
 	}
 	printf("pipeline: , %s\n", gst_pipeline_str);
 
 	pipeline = gst_parse_launch(gst_pipeline_str, NULL);
 	if(!pipeline) {
-		AFB_ERROR("pipeline construction failed!");
+		fprintf(stderr, "pipeline construction failed!");
 		return -1;
 	}
 
@@ -2207,7 +2203,7 @@ static void tef665x_set_band(radio_band_t band)
 
 	_debug("i2c_init ret value", ret);
 
-	if(band == BAND_FM){
+	if(band == RADIO_BAND_FM){
 		current_band = band;
 		FM_tune_to(fd, eAR_TuningAction_Preset, current_fm_frequency / 10000);
 	} else {
@@ -2222,7 +2218,7 @@ static void tef665x_set_band(radio_band_t band)
 
 static uint32_t tef665x_get_frequency(void)
 {
-	if(current_band == BAND_FM){
+	if(current_band == RADIO_BAND_FM){
 		return current_fm_frequency;
 	} else {
 		return current_am_frequency;
@@ -2234,7 +2230,7 @@ static void tef665x_set_alternative_frequency(uint32_t frequency)
 	uint32_t fd = 0;
 	int ret = i2c_init(I2C_DEV, _open, &fd);
 	
-	if(current_band == BAND_FM)
+	if(current_band == RADIO_BAND_FM)
 	{
 		FM_tune_to(fd, eAR_TuningAction_AF_Update, frequency / 10000);
 	}
@@ -2252,7 +2248,7 @@ static void tef665x_set_frequency(uint32_t frequency)
 	if(scanning)
 		return;
 
-	if(current_band == BAND_FM) {
+	if(current_band == RADIO_BAND_FM) {
 		if(frequency < known_fm_band_plans[fm_bandplan].min ||
 	    	frequency > known_fm_band_plans[fm_bandplan].max ) {
 			_debug("invalid FM frequency", frequency);
@@ -2268,7 +2264,7 @@ static void tef665x_set_frequency(uint32_t frequency)
 
 	int ret = i2c_init(I2C_DEV, _open, &fd);
 
-	if(current_band == BAND_FM){
+	if(current_band == RADIO_BAND_FM){
 		current_fm_frequency = frequency;
 	   _debug("frequency set to FM :", frequency);
 		FM_tune_to(fd, eAR_TuningAction_Preset, frequency / 10000);
@@ -2286,7 +2282,7 @@ static void tef665x_set_frequency(uint32_t frequency)
 	}
 
 	//Start RDS if the band was FM
-	if(current_band==BAND_FM){
+	if(current_band==RADIO_BAND_FM){
 		//Unlock Mutex
 		pthread_mutex_unlock (&RDS_Mutex);
 		
@@ -2314,7 +2310,7 @@ static void tef665x_search_frequency(uint32_t frequency)
 {
 	uint32_t fd = 0;
 	int ret = i2c_init(I2C_DEV, _open, &fd);
-	if(current_band == BAND_FM)
+	if(current_band == RADIO_BAND_FM)
 	{
 		current_fm_frequency = frequency;
 	    _debug("frequency set to FM :", frequency);
@@ -2338,14 +2334,14 @@ static void tef665x_search_frequency(uint32_t frequency)
 
 static int tef665x_band_supported(radio_band_t band)
 {
-	if(band == BAND_FM || band == BAND_AM)
+	if(band == RADIO_BAND_FM || band == RADIO_BAND_AM)
 		return 1;
 	return 0;
 }
 
 static uint32_t tef665x_get_min_frequency(radio_band_t band)
 {
-	if(band == BAND_FM) {
+	if(band == RADIO_BAND_FM) {
 		return known_fm_band_plans[fm_bandplan].min;
 	} else {
 		return known_am_band_plans[am_bandplan].min;
@@ -2354,7 +2350,7 @@ static uint32_t tef665x_get_min_frequency(radio_band_t band)
 
 static uint32_t tef665x_get_max_frequency(radio_band_t band)
 {
-	if(band == BAND_FM) {
+	if(band == RADIO_BAND_FM) {
 		return known_fm_band_plans[fm_bandplan].max;
 	} else {
 		return known_am_band_plans[am_bandplan].max;
@@ -2366,10 +2362,10 @@ static uint32_t tef665x_get_frequency_step(radio_band_t band)
 	uint32_t ret = 0;
 
 	switch (band) {
-	case BAND_AM:
+	case RADIO_BAND_AM:
 		ret = known_am_band_plans[am_bandplan].step;
 		break;
-	case BAND_FM:
+	case RADIO_BAND_FM:
 		ret = known_fm_band_plans[fm_bandplan].step;
 		break;
 	default:

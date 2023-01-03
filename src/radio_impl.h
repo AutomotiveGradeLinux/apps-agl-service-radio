@@ -20,24 +20,27 @@
 #include <stdint.h>
 
 typedef enum {
-	BAND_AM = 0,
-	BAND_FM
+	RADIO_BAND_UNSPECIFIED = 0,
+	RADIO_BAND_AM,
+	RADIO_BAND_FM
 } radio_band_t;
 
 typedef enum {
-	SCAN_FORWARD = 0,
-	SCAN_BACKWARD
+	RADIO_SCAN_UNSPECIFIED = 0,
+	RADIO_SCAN_FORWARD,
+	RADIO_SCAN_BACKWARD
 } radio_scan_direction_t;
 
 typedef void (*radio_scan_callback_t)(uint32_t frequency, void *data);
 
 typedef void (*radio_freq_callback_t)(uint32_t frequency, void *data);
 
-typedef void (*radio_rds_callback_t)(void *rds_data);
+typedef void (*radio_rds_callback_t)(void *rds_data, void *dat);
 
 typedef enum {
-	MONO = 0,
-	STEREO
+	RADIO_MODE_UNSPECIFIED = 0,
+	RADIO_MODE_MONO,
+	RADIO_MODE_STEREO
 } radio_stereo_mode_t;
 
 /*
