@@ -22,10 +22,7 @@
 #include <glib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <json-c/json.h>
 #include <gst/gst.h>
-
-#include <afb/afb-binding.h>
 
 #include "radio_impl.h"
 
@@ -180,7 +177,7 @@ static int kf_init(void)
 					   "scan_valid_snr_threshold",
 					   &error);
 		if(!error) {
-			AFB_API_INFO(afbBindingV3root, "Scan valid SNR level set to %d", n);
+			printf("Scan valid SNR level set to %d", n);
 			scan_valid_snr_threshold = n;
 		}
 
@@ -190,15 +187,15 @@ static int kf_init(void)
 					   "scan_valid_rssi_threshold",
 					   &error);
 		if(!error) {
-			AFB_API_INFO(afbBindingV3root, "Scan valid SNR level set to %d", n);
+			printf("Scan valid SNR level set to %d", n);
 			scan_valid_rssi_threshold = n;
 		}
 
 		g_key_file_free(conf_file);
 	}
 
-	AFB_API_INFO(afbBindingV3root, "Using FM Bandplan: %s", known_fm_band_plans[bandplan].name);
-	current_frequency = kf_get_min_frequency(BAND_FM);
+	printf("Using FM Bandplan: %s", known_fm_band_plans[bandplan].name);
+	current_frequency = kf_get_min_frequency(RADIO_BAND_FM);
 	snprintf(cmd,
 		sizeof(cmd),
 		"%s /dev/i2c-12 0x65 -b fm -p %s -t %d -u %d -c %d",
@@ -209,7 +206,7 @@ static int kf_init(void)
 		current_frequency / 1000);
 	rc = system(cmd);
 	if(rc != 0) {
-		AFB_API_ERROR(afbBindingV3root, "%s failed, rc = %d", SI_CTL, rc);
+		fprintf(stderr, "%s failed, rc = %d", SI_CTL, rc);
 		return -1;
 	}
 
@@ -223,12 +220,12 @@ static int kf_init(void)
 		      "audio/x-raw,format=F32LE,channels=2 ! "
 		      "pipewiresink stream-properties=\"p,media.role=Multimedia\"");
 	if(rc >= GST_PIPELINE_LEN) {
-		AFB_API_ERROR(afbBindingV3root, "pipeline string too long");
+		fprintf(stderr, "pipeline string too long");
 		return -1;
 	}
 	pipeline = gst_parse_launch(gst_pipeline_str, NULL);
 	if(!pipeline) {
-		AFB_API_ERROR(afbBindingV3root, "pipeline construction failed!");
+		fprintf(stderr, "pipeline construction failed!");
 		return -1;
 	}
 
@@ -330,7 +327,7 @@ done:
 
 static radio_band_t kf_get_band(void)
 {
-	return BAND_FM;
+	return RADIO_BAND_FM;
 }
 
 static void kf_set_band(radio_band_t band)
@@ -340,7 +337,7 @@ static void kf_set_band(radio_band_t band)
 
 static int kf_band_supported(radio_band_t band)
 {
-	if(band == BAND_FM)
+	if(band == RADIO_BAND_FM)
 		return 1;
 	return 0;
 }
@@ -360,10 +357,10 @@ static uint32_t kf_get_frequency_step(radio_band_t band)
 	uint32_t ret = 0;
 
 	switch (band) {
-	case BAND_AM:
+	case RADIO_BAND_AM:
 		ret = 1000; // 1 kHz
 		break;
-	case BAND_FM:
+	case RADIO_BAND_FM:
 		ret = known_fm_band_plans[bandplan].step;
 		break;
 	default:
@@ -442,17 +439,16 @@ static void kf_scan_start(radio_scan_direction_t direction,
 	snprintf(cmd,
 		 SI_CTL_CMDLINE_MAXLEN,
 		 "%s /dev/i2c-12 0x65 -l %s",
-		 SI_CTL, direction == SCAN_FORWARD ? "up" : "down");
+		 SI_CTL, direction == RADIO_SCAN_FORWARD ? "up" : "down");
 	fp = popen(cmd, "r");
 	if(fp == NULL) {
-		AFB_API_ERROR(afbBindingV3root, "Could not run: %s!", cmd);
+		fprintf(stderr, "Could not run: %s!", cmd);
 		return;
 	}
 	// Look for "Frequency:" in output
 	while(fgets(line, SI_CTL_OUTPUT_MAXLEN, fp) != NULL) {
 		if(strncmp("Frequency:", line, 10) == 0) {
 			new_frequency = atoi(line + 10);
-			//AFB_API_DEBUG(afbBindingV3root, "%s: got new_frequency = %d", __FUNCTION__, new_frequency);
 			break;
 		}
 	}
@@ -493,7 +489,7 @@ static void kf_scan_stop(void)
 
 static radio_stereo_mode_t kf_get_stereo_mode(void)
 {
-	return STEREO;
+	return RADIO_MODE_STEREO;
 }
 
 static void kf_set_stereo_mode(radio_stereo_mode_t mode)

@@ -25,12 +25,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include <glib.h>
-#include <afb/afb-binding.h>
 
 #include "radio_impl.h"
 
@@ -72,8 +72,6 @@ static int null_init(void)
 {
 	GKeyFile *conf_file;
 	char *value_str;
-	char *rootdir;
-	char *helper_path;
 
 	if(!present)
 		return -1;
@@ -110,7 +108,7 @@ static int null_init(void)
 	}
 
 	// Start off with minimum bandplan frequency
-	current_frequency = null_get_min_frequency(BAND_FM);
+	current_frequency = null_get_min_frequency(RADIO_BAND_FM);
 
 	initialized = true;
 	null_set_frequency(current_frequency);
@@ -149,7 +147,7 @@ static void null_set_frequency_callback(radio_freq_callback_t callback,
 static radio_band_t null_get_band(void)
 {
 	// We only support FM
-	return BAND_FM;
+	return RADIO_BAND_FM;
 }
 
 static void null_set_band(radio_band_t band)
@@ -159,7 +157,7 @@ static void null_set_band(radio_band_t band)
 
 static int null_band_supported(radio_band_t band)
 {
-	if(band == BAND_FM)
+	if(band == RADIO_BAND_FM)
 		return 1;
 	return 0;
 }
@@ -179,10 +177,10 @@ static uint32_t null_get_frequency_step(radio_band_t band)
 	uint32_t ret = 0;
 
 	switch (band) {
-	case BAND_AM:
+	case RADIO_BAND_AM:
 		ret = 1000; // 1 kHz
 		break;
-	case BAND_FM:
+	case RADIO_BAND_FM:
 		ret = known_fm_band_plans[bandplan].step;
 		break;
 	default:
@@ -226,7 +224,7 @@ static void null_scan_start(radio_scan_direction_t direction,
 
 	// Just go to the next frequency step up or down
 	frequency = current_frequency;
-	if(direction == SCAN_FORWARD) {
+	if(direction == RADIO_SCAN_FORWARD) {
 		frequency += known_fm_band_plans[bandplan].step;
 	} else {
 		frequency -= known_fm_band_plans[bandplan].step;
@@ -250,7 +248,7 @@ static void null_scan_stop(void)
 static radio_stereo_mode_t null_get_stereo_mode(void)
 {
 	// We only support stereo
-	return STEREO;
+	return RADIO_MODE_STEREO;
 }
 
 static void null_set_stereo_mode(radio_stereo_mode_t mode)

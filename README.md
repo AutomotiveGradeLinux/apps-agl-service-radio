@@ -2,6 +2,9 @@
 
 ## Overview
 
+NOTE: The verbs/events below are out of date, refer to protos/radio.proto for the
+new gRPC API until this documentation gets updated.
+
 Radio Service allows tuning of rtl-sdr based devices to radio stations and receive
 respective audio stream.
 
