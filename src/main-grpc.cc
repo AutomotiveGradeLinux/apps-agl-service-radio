@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /*
- * Copyright (C) 2023 Konsulko Group
+ * Copyright (C) 2023,2024 Konsulko Group
  */
 
 #include <thread>
@@ -40,8 +40,30 @@ int main(int argc, char *argv[])
     grpc::reflection::InitProtoReflectionServerBuilderPlugin();
     ServerBuilder builder;
 
+    // Load settings from configuration file if it exists
+    std::string bind_address = "localhost";
+    GKeyFile *conf_file = g_key_file_new();
+    if(conf_file &&
+       g_key_file_load_from_dirs(conf_file,
+				 "AGL.conf",
+				 (const gchar**) g_get_system_config_dirs(),
+				 NULL,
+				 G_KEY_FILE_KEEP_COMMENTS,
+				 NULL) == TRUE) {
+
+	// Set band plan if it is specified
+	gchar *value_str = g_key_file_get_string(conf_file,
+						 "radio",
+						 "bind",
+						 NULL);
+	if(value_str) {
+	    bind_address = value_str;
+	}
+    }
+    g_key_file_free(conf_file);
+
     // Listen on the given address without any authentication mechanism (for now)
-    std::string server_address("localhost:50053");
+    std::string server_address(bind_address + ":50053");
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
 
     // Register "service" as the instance through which we'll communicate with
