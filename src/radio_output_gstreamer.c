@@ -77,7 +77,7 @@ int radio_output_open()
 					 "layout", G_TYPE_STRING, "interleaved",
 					 "channel-mask", G_TYPE_UINT64, 3,
 					 NULL), NULL);
-	gst_util_set_object_arg(sink, "stream-properties", "p,media.role=Multimedia");
+	gst_util_set_object_arg(G_OBJECT(sink), "stream-properties", "p,media.role=Multimedia");
 
 	if((p = getenv("RADIO_OUTPUT"))) {
 		fprintf(stderr, "Using output device %s\n", p);

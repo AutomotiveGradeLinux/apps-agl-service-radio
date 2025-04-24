@@ -389,8 +389,6 @@ static void kf_start(void)
 
 static void kf_stop(void)
 {
-	GstEvent *event;
-
 	if(initialized && running) {
 		// Stop pipeline
 		running = false;
@@ -411,7 +409,7 @@ static void kf_stop(void)
 #ifndef WIREPLUMBER_WORKAROUND
 		// Flush pipeline
 		// This seems required to avoid stutters on starts after a stop
-		event = gst_event_new_flush_start();
+		GstEvent *event = gst_event_new_flush_start();
 		gst_element_send_event(GST_ELEMENT(pipeline), event);
 		event = gst_event_new_flush_stop(TRUE);
 		gst_element_send_event(GST_ELEMENT(pipeline), event); 
